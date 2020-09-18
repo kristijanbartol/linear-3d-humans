@@ -3,6 +3,7 @@ import time
 import math
 import numpy as np
 import torch
+import torch.nn as nn
 import trimesh
 from PIL import Image
 from pathlib import Path
@@ -26,6 +27,13 @@ GT_DIR = 'gt/'
 LOG = False
 
 os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
+
+
+def to_origin(joints):
+    new_joints = deepcopy(joints)
+    for joint_idx in range(joints.shape[1]):
+        new_joints[joint_idx] -= new_joints[0]
+    return new_joints
 
 
 def render_sample(vertices, faces, subject_idx, pose_idx):
@@ -56,16 +64,9 @@ def render_sample(vertices, faces, subject_idx, pose_idx):
                                         np.radians(-angle), (0, 1, 0)))
 
 
-def generate_sample(shape_coefs, body_pose, sid, pid):
-    model_time = time.time()
-    # TODO: Create model only once and then just set the attributes.
-    model = smplx.create(MODELS_DIR, model_type='smplx',
-                         gender='neutral', use_face_contour=False,
-                         num_betas=shape_coefs.shape[1],
-                         body_pose=body_pose,
-                         ext='npz')
-    if LOG:
-        print(f'Model creation time: {time.time() - model_time}')
+def generate_sample(model, shape_coefs, body_pose, sid, pid):
+    model.register_parameter('body_pose', 
+            nn.Parameter(body_pose, requires_grad=True))
 
     inference_time = time.time()
     output = model(betas=shape_coefs, return_verts=True)
@@ -81,6 +82,7 @@ def generate_sample(shape_coefs, body_pose, sid, pid):
     if LOG:
         print(f'Render time: {time.time() - render_start}')
 
+    # TODO: Move poses to the center of an image.
     joint_dir = os.path.join(DATA_DIR, GT_DIR, f'S{sid}')
     Path(joint_dir).mkdir(parents=True, exist_ok=True)
     np.save(os.path.join(joint_dir, f'{pid:08d}.npy'), joints)
@@ -97,42 +99,36 @@ def sample_poses(vposer_model, num_poses, output_type='aa'):
     body_poses = body_poses.reshape(num_poses, 1, -1)
     return body_poses
 
-def encode_id_to_coefs(idx, end, num_coefs):
-    ratio = float(idx) / float(end)
-    number = f'{int(ratio * math.pow(10, num_coefs)):010d}'
-    print(number)
-    params = []
-    for i in range(num_coefs):
-        params.append(int(number[i]) * 0.1)
-    return np.array(params, dtype=np.float32).reshape(1, num_coefs)
-
-
-def generate_coefs(num_samples, num_coefs):
-    coefs = np.zeros((num_samples, 1, num_coefs), dtype=np.float32)
-    for sample_idx in range(num_samples):
-        coefs[sample_idx] = encode_id_to_coefs(
-                sample_idx, num_samples, num_coefs)
-    return torch.from_numpy(coefs)
-
 
 def main(num_poses, num_subjects, num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
 
     body_poses  = sample_poses(vposer_model, num_poses)
-#    shape_coefs = generate_coefs(num_subjects, num_coefs)
     shape_coefs = torch.from_numpy(np.random.normal(
         0., 1., size=(num_subjects, 1, 10)).astype(np.float32))
 
+    model = smplx.create(MODELS_DIR, model_type='smplx',
+                         gender='neutral', use_face_contour=False,
+                         num_betas=num_coefs,
+                         body_pose=body_poses[0],
+                         ext='npz')
+
     for subject_idx in range(num_subjects):
-        print(shape_coefs[subject_idx])
+        subject_time = time.time()
         for pose_idx in range(num_poses):
-            generate_sample(shape_coefs[subject_idx], body_poses[pose_idx],
+            print('S {} P {}'.format(subject_idx, pose_idx))
+            sample_time = time.time()
+            generate_sample(model, shape_coefs[subject_idx], body_poses[pose_idx],
                     subject_idx, pose_idx)
+            if LOG:
+                print(f'Sample generation time: {time.time() - sample_time}')
+        print(f'Subject generation time: {time.time() - subject_time}')
+
 
 
 if __name__ == '__main__':
     all_time = time.time()
-    main(10, 5)
+    main(num_poses=50000, num_subjects=50)
     if LOG:
         print(f'All time: {time.time() - all_time}')
 
