@@ -1,9 +1,11 @@
 import os
 import time
+import math
 import numpy as np
 import torch
 import trimesh
 from PIL import Image
+from pathlib import Path
 
 import smplx
 
@@ -16,15 +18,24 @@ from human_body_prior.tools.visualization_tools import imagearray2file, smpl_par
 
 
 MODELS_DIR = 'models/'
-MESHES_DIR = 'meshes/'
-VPOSER_DIR = 'vposer_v1_0'
+VPOSER_DIR = 'vposer_v1_0/'
+DATA_DIR = 'data/'
+IMG_DIR = 'imgs/'
+GT_DIR = 'gt/'
+
+LOG = False
 
 os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
-def render_sample(vertices, faces):
+def render_sample(vertices, faces, subject_idx, pose_idx):
+    img_dir = os.path.join(DATA_DIR, IMG_DIR, f'S{subject_idx}')
+    # NOTE: dir_idx is equal to view_idx.
+    for dir_idx in range(4):
+        Path(os.path.join(img_dir, str(dir_idx))).mkdir(parents=True, exist_ok=True)
+
     view_angles = [0, 90, 180, 270]
-    imw, imh = 400, 400
+    imw, imh = 600, 600
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
 
     body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
@@ -34,44 +45,94 @@ def render_sample(vertices, faces):
                                     trimesh.transformations.rotation_matrix(
                                         np.radians(angle), (0, 1, 0)))
         mv.set_meshes([body_mesh], group_name='static')
+
         image = mv.render()
         image = Image.fromarray(image, 'RGB')
-        image.save('render{}.png'.format(view_idx))
+        img_path = os.path.join(img_dir, str(view_idx), f'{pose_idx:08d}.png')
+        image.save(img_path)
+
         apply_mesh_tranfsormations_([body_mesh],
                                     trimesh.transformations.rotation_matrix(
                                         np.radians(-angle), (0, 1, 0)))
 
 
-def create_mesh(model_dir, mesh_path, shape_coefs, body_pose):
+def generate_sample(shape_coefs, body_pose, sid, pid):
     model_time = time.time()
-    model = smplx.create(model_dir, model_type='smplx',
+    # TODO: Create model only once and then just set the attributes.
+    model = smplx.create(MODELS_DIR, model_type='smplx',
                          gender='neutral', use_face_contour=False,
-                         num_betas=10,
+                         num_betas=shape_coefs.shape[1],
                          body_pose=body_pose,
-                         num_expression_coeffs=10,
                          ext='npz')
-    print('Model creation time: {}'.format(time.time() - model_time))
+    if LOG:
+        print(f'Model creation time: {time.time() - model_time}')
+
+    inference_time = time.time()
     output = model(betas=shape_coefs, return_verts=True)
+    if LOG:
+        print(f'Inference time: {time.time() - inference_time}')
+
     vertices = output.vertices.detach().cpu().numpy().squeeze()
     faces = model.faces.squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
 
     render_start = time.time()
-    render_sample(vertices, faces)
-    print('Render time: {}'.format(time.time() - render_start))
-    # TODO: Also store joints.
+    render_sample(vertices, faces, sid, pid)
+    if LOG:
+        print(f'Render time: {time.time() - render_start}')
+
+    joint_dir = os.path.join(DATA_DIR, GT_DIR, f'S{sid}')
+    Path(joint_dir).mkdir(parents=True, exist_ok=True)
+    np.save(os.path.join(joint_dir, f'{pid:08d}.npy'), joints)
 
 
-def generate_meshes():
+def sample_poses(vposer_model, num_poses, output_type='aa'):
+    dtype = vposer_model.bodyprior_dec_fc1.weight.dtype
+    device = vposer_model.bodyprior_dec_fc1.weight.device
+    vposer_model.eval()
+    with torch.no_grad():
+        Zgen = torch.tensor(np.random.normal(0., 1., 
+            size=(num_poses, vposer_model.latentD)), dtype=dtype).to(device)
+    body_poses = vposer_model.decode(Zgen, output_type=output_type)
+    body_poses = body_poses.reshape(num_poses, 1, -1)
+    return body_poses
+
+def encode_id_to_coefs(idx, end, num_coefs):
+    ratio = float(idx) / float(end)
+    number = f'{int(ratio * math.pow(10, num_coefs)):010d}'
+    print(number)
+    params = []
+    for i in range(num_coefs):
+        params.append(int(number[i]) * 0.1)
+    return np.array(params, dtype=np.float32).reshape(1, num_coefs)
+
+
+def generate_coefs(num_samples, num_coefs):
+    coefs = np.zeros((num_samples, 1, num_coefs), dtype=np.float32)
+    for sample_idx in range(num_samples):
+        coefs[sample_idx] = encode_id_to_coefs(
+                sample_idx, num_samples, num_coefs)
+    return torch.from_numpy(coefs)
+
+
+def main(num_poses, num_subjects, num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
-    body_pose = vposer_model.sample_poses(num_poses=1)[0][0].reshape(1, -1)
-    shape_coefs = torch.randn([1, 10], dtype=torch.float32)
-    mesh_path = os.path.join(MESHES_DIR, 'sample.obj')
-    create_mesh(MODELS_DIR, mesh_path, shape_coefs, body_pose)
+
+    body_poses  = sample_poses(vposer_model, num_poses)
+#    shape_coefs = generate_coefs(num_subjects, num_coefs)
+    shape_coefs = torch.from_numpy(np.random.normal(
+        0., 1., size=(num_subjects, 1, 10)).astype(np.float32))
+
+    for subject_idx in range(num_subjects):
+        print(shape_coefs[subject_idx])
+        for pose_idx in range(num_poses):
+            generate_sample(shape_coefs[subject_idx], body_poses[pose_idx],
+                    subject_idx, pose_idx)
 
 
 if __name__ == '__main__':
     all_time = time.time()
-    generate_meshes()
-    print('All time: {}'.format(time.time() - all_time))
+    main(10, 5)
+    if LOG:
+        print(f'All time: {time.time() - all_time}')
 
