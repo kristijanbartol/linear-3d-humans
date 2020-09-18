@@ -29,13 +29,6 @@ LOG = False
 os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
-def to_origin(joints):
-    new_joints = deepcopy(joints)
-    for joint_idx in range(joints.shape[1]):
-        new_joints[joint_idx] -= new_joints[0]
-    return new_joints
-
-
 def render_sample(vertices, faces, subject_idx, pose_idx):
     img_dir = os.path.join(DATA_DIR, IMG_DIR, f'S{subject_idx}')
     # NOTE: dir_idx is equal to view_idx.
@@ -82,7 +75,6 @@ def generate_sample(model, shape_coefs, body_pose, sid, pid):
     if LOG:
         print(f'Render time: {time.time() - render_start}')
 
-    # TODO: Move poses to the center of an image.
     joint_dir = os.path.join(DATA_DIR, GT_DIR, f'S{sid}')
     Path(joint_dir).mkdir(parents=True, exist_ok=True)
     np.save(os.path.join(joint_dir, f'{pid:08d}.npy'), joints)
