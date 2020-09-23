@@ -7,6 +7,8 @@ import torch.nn as nn
 import trimesh
 from PIL import Image
 from pathlib import Path
+import argparse
+import json
 
 import smplx
 
@@ -21,19 +23,20 @@ from human_body_prior.tools.visualization_tools import imagearray2file, smpl_par
 MODELS_DIR = 'models/'
 VPOSER_DIR = 'vposer_v1_0/'
 DATA_DIR = 'data/'
-IMG_DIR = 'imgs/'
-GT_DIR = 'gt/'
-
-LOG = False
+IMG_DIR_TEMPLATE = os.path.join(DATA_DIR, '{}/imgs/')
+GT_DIR_TEMPLATE = os.path.join(DATA_DIR, '{}/gt/')
 
 os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
-def render_sample(vertices, faces, subject_idx, pose_idx):
-    img_dir = os.path.join(DATA_DIR, IMG_DIR, f'S{subject_idx}')
-    # NOTE: dir_idx is equal to view_idx.
-    for dir_idx in range(4):
-        Path(os.path.join(img_dir, str(dir_idx))).mkdir(parents=True, exist_ok=True)
+def render_sample(vertices, faces, dataset_name, subject_idx, pose_idx):
+#    img_dir = os.path.join(DATA_DIR, IMG_DIR, f'S{subject_idx}')
+    img_dir = os.path.join(
+            IMG_DIR_TEMPLATE.format(dataset_name), f'S{subject_idx}')
+    for view_idx in range(4):
+        os.makedirs(os.path.join(img_dir, str(view_idx)), exist_ok=True)
+#        Path(os.path.join(img_dir, str(view_idx))).mkdir(
+#                parents=True, exist_ok=True)
 
     view_angles = [0, 90, 180, 270]
     imw, imh = 600, 600
@@ -56,28 +59,63 @@ def render_sample(vertices, faces, subject_idx, pose_idx):
                                     trimesh.transformations.rotation_matrix(
                                         np.radians(-angle), (0, 1, 0)))
 
+def save_joints(joints, dataset_name, subject_idx, pose_idx):
+    joint_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'S{subject_idx}')
+    Path(joint_dir).mkdir(parents=True, exist_ok=True)
+    np.save(os.path.join(joint_dir, f'{pose_idx:08d}.npy'), joints)
 
-def generate_sample(model, shape_coefs, body_pose, sid, pid):
+
+def generate_sample(dataset_name, model, shape_coefs, body_pose, sid, pid):
     model.register_parameter('body_pose', 
             nn.Parameter(body_pose, requires_grad=True))
 
-    inference_time = time.time()
     output = model(betas=shape_coefs, return_verts=True)
-    if LOG:
-        print(f'Inference time: {time.time() - inference_time}')
 
     vertices = output.vertices.detach().cpu().numpy().squeeze()
     faces = model.faces.squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
 
-    render_start = time.time()
-    render_sample(vertices, faces, sid, pid)
-    if LOG:
-        print(f'Render time: {time.time() - render_start}')
+    render_sample(vertices, faces, dataset_name, sid, pid)
+    save_joints(joints, dataset_name, sid, pid)
 
-    joint_dir = os.path.join(DATA_DIR, GT_DIR, f'S{sid}')
-    Path(joint_dir).mkdir(parents=True, exist_ok=True)
-    np.save(os.path.join(joint_dir, f'{pid:08d}.npy'), joints)
+
+def create_model(gender, init_body_pose, num_coefs=10):
+    return smplx.create(MODELS_DIR, model_type='smplx',
+                        gender=gender, use_face_contour=False,
+                        num_betas=num_coefs,
+                        body_pose=init_body_pose,
+                        ext='npz')
+
+
+def save_params(dataset_name, sid, shape_coefs, gender):
+    save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'S{sid}')
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, 'params.json')
+    params = {'betas': shape_coefs[sid].tolist(), 'gender': gender}
+    with open(save_path, 'w') as fjson:
+        json.dump(params, fjson)
+
+
+def generate_subjects(dataset_name, gender, start_idx, num_subjects, 
+        body_poses, vposer, num_coefs=10):
+    if num_subjects <= 0:
+        return
+    model = create_model(gender, body_poses[0])
+    np_coefs = np.random.normal(
+            0., 1., size=(num_subjects, 1, num_coefs)).astype(np.float32)
+    shape_coefs = torch.from_numpy(np_coefs)
+
+    for subject_idx in range(start_idx, start_idx + num_subjects):
+        save_params(dataset_name, subject_idx, np_coefs, gender)
+        for pose_idx in range(body_poses.shape[0]):
+            print('S {} P {}'.format(subject_idx, pose_idx))
+            generate_sample(dataset_name,
+                    model, 
+                    shape_coefs[subject_idx - start_idx], 
+                    body_poses[pose_idx],
+                    subject_idx, 
+                    pose_idx
+            )
 
 
 def sample_poses(vposer_model, num_poses, output_type='aa'):
@@ -92,35 +130,82 @@ def sample_poses(vposer_model, num_poses, output_type='aa'):
     return body_poses
 
 
-def main(num_poses, num_subjects, num_coefs=10):
+def main(dataset_name, num_poses, num_neutral=0, num_male=0, 
+        num_female=0, num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
-
     body_poses  = sample_poses(vposer_model, num_poses)
-    shape_coefs = torch.from_numpy(np.random.normal(
-        0., 1., size=(num_subjects, 1, 10)).astype(np.float32))
+    
+    # Create dataset dir and img/ and gt/ subdirs.
+    Path(IMG_DIR_TEMPLATE.format(dataset_name)).mkdir(
+            parents=True, exist_ok=True)
+    os.makedirs(GT_DIR_TEMPLATE.format(dataset_name), exist_ok=True)
 
-    model = smplx.create(MODELS_DIR, model_type='smplx',
-                         gender='neutral', use_face_contour=False,
-                         num_betas=num_coefs,
-                         body_pose=body_poses[0],
-                         ext='npz')
+    # Save body pose params (one file per dataset)..
+    np.save(os.path.join(GT_DIR_TEMPLATE.format(dataset_name), 'poses.npy'), 
+            body_poses.cpu().detach().numpy())
+    
+    generate_subjects(dataset_name,
+            'neutral', 
+            0, 
+            num_neutral, 
+            body_poses, 
+            vposer_model
+    )
+    generate_subjects(dataset_name,
+            'male', 
+            num_neutral, 
+            num_male, 
+            body_poses, 
+            vposer_model
+    )
+    generate_subjects(dataset_name,
+            'female', 
+            num_neutral + num_male, 
+            num_female, 
+            body_poses, 
+            vposer_model
+    )
 
-    for subject_idx in range(num_subjects):
-        subject_time = time.time()
-        for pose_idx in range(num_poses):
-            print('S {} P {}'.format(subject_idx, pose_idx))
-            sample_time = time.time()
-            generate_sample(model, shape_coefs[subject_idx], body_poses[pose_idx],
-                    subject_idx, pose_idx)
-            if LOG:
-                print(f'Sample generation time: {time.time() - sample_time}')
-        print(f'Subject generation time: {time.time() - subject_time}')
 
+def init_argparse() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+            usage='%(prog)s [OPTIONS]...',
+            description='Generates specified number of meshes \
+            (subject x pose).'
+            )
+    parser.add_argument(
+            '--name', type=str, help='dataset name')
+    parser.add_argument(
+            '--num_poses', type=int, default=0,
+            help='# of poses per subject')
+    parser.add_argument(
+            '--neutral', type=int, default=0,
+            help='# of neutral gender subjects')
+    parser.add_argument(
+            '--male', type=int, default=0,
+            help='# of male subjects')
+    parser.add_argument(
+            '--female', type=int, default=0,
+            help='# of female subjects')
+
+    return parser
+
+
+def check_args(args):
+    if args.neutral <= 0 and args.male <= 0 and \
+            args.female <= 0:
+        raise Exception('Should set at least one gender!')
+    if args.num_poses <= 0:
+        raise Exception('Should generate more than 0 pose!')
+    return args
 
 
 if __name__ == '__main__':
-    all_time = time.time()
-    main(num_poses=50000, num_subjects=50)
-    if LOG:
-        print(f'All time: {time.time() - all_time}')
+    parser = init_argparse()
+    args = check_args(parser.parse_args())
+    main(dataset_name=args.name,
+         num_poses=args.num_poses, 
+         num_neutral=args.neutral,
+         num_male=args.male,
+         num_female=args.female)
 
