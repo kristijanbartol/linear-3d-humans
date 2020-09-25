@@ -36,9 +36,10 @@ GENDER_DICT = {
 #os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
-def render_sample(vertices, faces, dataset_name, subject_idx, pose_idx, num_views=4):
+def render_sample(vertices, faces, dataset_name, gender, subject_idx, 
+        pose_idx, num_views=4):
     img_dir = os.path.join(
-            IMG_DIR_TEMPLATE.format(dataset_name), f'S{subject_idx}')
+            IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
     for view_idx in range(num_views):
         os.makedirs(os.path.join(img_dir, str(view_idx)), exist_ok=True)
 
@@ -63,24 +64,28 @@ def render_sample(vertices, faces, dataset_name, subject_idx, pose_idx, num_view
                                         np.radians(rot_step), (0, 1, 0)))
 
 
-def save_joints(joints, dataset_name, subject_idx, pose_idx):
-    joint_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'S{subject_idx}')
+def save_joints(joints, dataset_name, gender, subject_idx, pose_idx):
+    joint_dir = os.path.join(
+            GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
     Path(joint_dir).mkdir(parents=True, exist_ok=True)
     np.save(os.path.join(joint_dir, f'{pose_idx:08d}.npy'), joints)
 
 
-def generate_sample(dataset_name, model, shape_coefs, body_pose, sid, pid, num_views=4):
+def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, 
+        sid, pid, num_views=4, render=False):
     model.register_parameter('body_pose', 
-            nn.Parameter(body_pose, requires_grad=True))
+            nn.Parameter(body_pose, requires_grad=False))
 
     output = model(betas=shape_coefs, return_verts=True)
 
-    vertices = output.vertices.detach().cpu().numpy().squeeze()
-    faces = model.faces.squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
 
-    render_sample(vertices, faces, dataset_name, sid, pid, num_views=num_views)
-    save_joints(joints, dataset_name, sid, pid)
+    if render:
+        vertices = output.vertices.detach().cpu().numpy().squeeze()
+        faces = model.faces.squeeze()
+        render_sample(vertices, faces, dataset_name, gender, 
+                sid, pid, num_views=num_views)
+    save_joints(joints, dataset_name, gender, sid, pid)
 
 
 def create_model(gender, init_body_pose, num_coefs=10):
@@ -91,8 +96,8 @@ def create_model(gender, init_body_pose, num_coefs=10):
                         ext='npz')
 
 
-def save_params(dataset_name, sid, shape_coefs, gender):
-    save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'S{sid}')
+def save_params(dataset_name, gender, sid, shape_coefs):
+    save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, 'params.json')
     params = {'betas': shape_coefs[sid].tolist(), 'gender': GENDER_DICT[gender]}
@@ -100,26 +105,28 @@ def save_params(dataset_name, sid, shape_coefs, gender):
         json.dump(params, fjson)
 
 
-def generate_subjects(dataset_name, gender, start_idx, num_subjects, 
-        body_poses, vposer, num_views=4, num_coefs=10):
+def generate_subjects(dataset_name, gender, num_subjects, 
+        body_poses, vposer, num_views=4, render=False, num_coefs=10):
     if num_subjects <= 0:
         return
-    model = create_model(gender, body_poses[0])
     np_coefs = np.random.normal(
             0., 1., size=(num_subjects, 1, num_coefs)).astype(np.float32)
     shape_coefs = torch.from_numpy(np_coefs)
+    model = create_model(gender, body_poses[0])
 
-    for subject_idx in range(start_idx, start_idx + num_subjects):
-        save_params(dataset_name, subject_idx - start_idx, np_coefs, gender)
+    for subject_idx in range(num_subjects):
+        save_params(dataset_name, gender, subject_idx, np_coefs)
         for pose_idx in range(body_poses.shape[0]):
             print('{} {} pose {}'.format(gender, subject_idx, pose_idx))
             generate_sample(dataset_name,
+                    gender,
                     model, 
-                    shape_coefs[subject_idx - start_idx], 
+                    shape_coefs[subject_idx], 
                     body_poses[pose_idx],
                     subject_idx, 
                     pose_idx,
-                    num_views
+                    num_views,
+                    render
             )
 
 
@@ -138,7 +145,8 @@ def sample_poses(vposer_model, num_poses, loaded_np=None, output_type='aa'):
 
 
 def main(dataset_name, num_poses, num_neutral=0, num_male=0, 
-        num_female=0, num_views=4, regenerate_poses=False, num_coefs=10):
+        num_female=0, num_views=4, regenerate_poses=False, 
+        render=False,num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
     
     poses_path = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), 'poses.npy')
@@ -150,7 +158,7 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
         Path(gt_dir).mkdir(parents=True, exist_ok=True)
         np.save(os.path.join(gt_dir, 'poses.npy'), body_poses.cpu().detach().numpy())
     else:
-        body_poses = sample_poses(vposer_model, num_poses, np.load(poses_path))
+        body_poses = torch.tensor(np.load(poses_path))
     
     # Create dataset dir and img/ and gt/ subdirs.
     Path(IMG_DIR_TEMPLATE.format(dataset_name)).mkdir(
@@ -159,27 +167,27 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
     
     generate_subjects(dataset_name,
             'neutral', 
-            0, 
             num_neutral, 
             body_poses, 
             vposer_model,
-            num_views
+            num_views,
+            render
     )
     generate_subjects(dataset_name,
             'male', 
-            num_neutral, 
             num_male, 
             body_poses, 
             vposer_model,
-            num_views
+            num_views,
+            render
     )
     generate_subjects(dataset_name,
             'female', 
-            num_neutral + num_male, 
             num_female, 
             body_poses, 
             vposer_model,
-            num_views
+            num_views,
+            render
     )
 
 
@@ -209,6 +217,9 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
             '--regenerate_poses', dest='regenerate_poses',
             action='store_true', help='regenerate pose params')
+    parser.add_argument(
+            '--render', dest='render',
+            action='store_true', help='render poses')
 
     return parser
 
@@ -230,5 +241,7 @@ if __name__ == '__main__':
          num_neutral=args.neutral,
          num_male=args.male,
          num_female=args.female,
-         num_views=args.num_views)
+         num_views=args.num_views,
+         regenerate_poses=args.regenerate_poses,
+         render=args.render)
 
