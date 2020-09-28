@@ -136,8 +136,11 @@ def draw_openpose(json_fpath, img_path):
 
 
 if __name__ == '__main__':
+    '''
     draw_openpose('dataset/kiki1_mesh3_keypoints.json', 
             'dataset/kiki1_mesh3.png')
+    '''
+
     '''
     with h5py.File('dataset/h36m/annot.h5', 'r') as f:
         for frame_idx in range(0, 3000, 5):
@@ -159,25 +162,22 @@ if __name__ == '__main__':
             cv2.waitKey(0)
     '''
     
-    '''
-    kpts_2d, kpts_3d = read_txt('dataset/3dpeople/train/man01/02_01_walk/camera01/0001.txt')
-    #kpts_3d = read_numpy('outputs.npy')
+    kpts_3d = read_numpy('data/gender/gt/male0000/00000000.npy')
 
     #kpts_3d = np.array(kpts_3d).flatten()
-    kpts_3d, scale = normalize_3d_numpy(np.array(kpts_3d))
-    kpts_3d *= scale
-    kpts_3d = np.array(kpts_3d)
+#    kpts_3d, scale = normalize_3d_numpy(np.array(kpts_3d))
+#    kpts_3d *= scale
+#    kpts_3d = np.array(kpts_3d)
     kpts_3d[:, [1, 2]] = kpts_3d[:, [2, 1]]
     kpts_3d = random_translate(kpts_3d)
     #kpts_3d = torch.tensor(kpts_3d, dtype=torch.float32).transpose(0, 1)
 
-    num_views = 60
-    #P = generate_random_projection()
-    Ps = generate_uniform_projections_torch(num_views)
+    num_views = 5
+    P = generate_random_projection_matrices(1)
+#    Ps = generate_uniform_projections_torch(num_views)
     for idx in range(num_views):
-        P = Ps[idx].data.cpu().numpy()
         kpts_2d = project(kpts_3d, P)
-        draw_numpy_2d(kpts_2d, PEOPLE3D_H, PEOPLE3D_W)
+        draw_numpy_2d(kpts_2d, 600, 600)
         cv2.waitKey(0)
 
     #P = create_projection_matrix(90, 45) 
@@ -189,5 +189,4 @@ if __name__ == '__main__':
     #draw_2d(kpts_2d)
     #draw_3d(kpts_3d)
     #cv2.waitKey(0)
-    ''' 
 
