@@ -9,6 +9,7 @@ from PIL import Image
 from pathlib import Path
 import argparse
 import json
+import pyrender
 
 import smplx
 
@@ -33,9 +34,10 @@ GENDER_DICT = {
         'neutral': 2
         }
 
-#os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
+os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
+'''
 def render_sample(vertices, faces, dataset_name, gender, subject_idx, 
         pose_idx, num_views=4):
     img_dir = os.path.join(
@@ -62,6 +64,35 @@ def render_sample(vertices, faces, dataset_name, gender, subject_idx,
         apply_mesh_tranfsormations_([body_mesh],
                                     trimesh.transformations.rotation_matrix(
                                         np.radians(rot_step), (0, 1, 0)))
+'''
+
+
+def render_sample(vertices, faces, dataset_name, gender, subject_idx, 
+        pose_idx, num_views=4):
+    img_dir = os.path.join(
+            IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
+    for view_idx in range(num_views):
+        os.makedirs(os.path.join(img_dir, str(view_idx)), exist_ok=True)
+
+    rot_step = 90
+
+    tri_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+            vertex_colors=np.tile(colors['grey'], (6890, 1)))
+    mesh = pyrender.Mesh.from_trimesh(tri_mesh)
+    scene = pyrender.Scene()
+    scene.add(mesh)
+    viewer = pyrender.Viewer(scene, use_raymond_lighting=True)
+    image = viewer.render(scene)
+
+    image = Image.fromarray(image, 'RGB')
+    img_path = os.path.join(img_dir, str(view_idx), f'{pose_idx:08d}.png')
+    image.save(img_path)
+
+        # TODO: No need to apply the transformation twice. 
+        # You can move for 90 deg every time.
+#        apply_mesh_tranfsormations_([body_mesh],
+#                                    trimesh.transformations.rotation_matrix(
+#                                        np.radians(rot_step), (0, 1, 0)))
 
 
 def save_joints(joints, dataset_name, gender, subject_idx, pose_idx):
