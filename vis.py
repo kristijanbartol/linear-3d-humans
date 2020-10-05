@@ -13,9 +13,8 @@ from random import random
 
 from const import PELVIS, H36M_KPTS_15, H36M_PARTS_15, KPTS_17, BODY_PARTS_17, \
         OPENPOSE_PARTS_15, RADIUS, K
-#from data_utils import generate_random_projection, \
-#        generate_uniform_projection_matrices, project, normalize_3d_numpy, \
-#        generate_uniform_projections_torch
+#from data_utils import generate_uniform_projection_matrices, project, \
+#        normalize_3d_numpy, generate_uniform_projections_torch
 
 
 PEOPLE3D_H = 480
@@ -135,58 +134,28 @@ def draw_openpose(json_fpath, img_path):
     cv2.waitKey(0)
 
 
+def draw_keypoints(pose_2d, render_path):
+    img = cv2.imread(render_path)
+    for kpt_idx in SMPL_KPTS:
+        img = cv2.circle(img, pose_2d[kpt_idx], radius=1, color=(0, 255, 0), thickness=-1)
+
+    for part in SMPL_PARTS:
+        img = cv2.line(img, pose_2d[part[0]], pose_2d[part[1]], (255, 0, 0), thickness=1)
+
+    cv2.imshow('2d keypoints', img)
+    cv2.waitKey(0)
+        
+
+
 if __name__ == '__main__':
-    '''
-    draw_openpose('dataset/kiki1_mesh3_keypoints.json', 
-            'dataset/kiki1_mesh3.png')
-    '''
+    for subject in ['female0000', 'female0001', 'female0003',
+            'male0000', 'male0002', 'male0004']:
+        for pose in [0, 2, 3, 4, 6, 9]:
+            kpts_3d = np.load(
+                    f'data/test/gt/{subject}/0000000{pose}.npy')
+            render_path = f'data/test/imgs/{subject}/0/0000000{pose}.png'
 
-    '''
-    with h5py.File('dataset/h36m/annot.h5', 'r') as f:
-        for frame_idx in range(0, 3000, 5):
-            sample_2d_pose = f['pose']['2d'][frame_idx]
-            img = np.zeros((H36M_H, H36M_W, 3), np.uint8)
-
-            for kpt_idx, kpt in enumerate(sample_2d_pose):
-                if kpt_idx in H36M_KPTS_15:
-                    img = cv2.circle(
-                        img, tuple([int(x) for x in kpt]),
-                        radius=1, color=(0, 255, 0), thickness=-1)
-
-            for part in H36M_PARTS_15:
-                start_point = to_int_tuple(sample_2d_pose[part[0]])
-                end_point = to_int_tuple(sample_2d_pose[part[1]])
-                img = cv2.line(img, start_point, end_point, (255, 0, 0), thickness=1) 
-
-            cv2.imshow('2d keypoints', img)
-            cv2.waitKey(0)
-    '''
-    
-    kpts_3d = read_numpy('data/gender/gt/male0000/00000000.npy')
-
-    #kpts_3d = np.array(kpts_3d).flatten()
-#    kpts_3d, scale = normalize_3d_numpy(np.array(kpts_3d))
-#    kpts_3d *= scale
-#    kpts_3d = np.array(kpts_3d)
-    kpts_3d[:, [1, 2]] = kpts_3d[:, [2, 1]]
-    kpts_3d = random_translate(kpts_3d)
-    #kpts_3d = torch.tensor(kpts_3d, dtype=torch.float32).transpose(0, 1)
-
-    num_views = 5
-    P = generate_random_projection_matrices(1)
-#    Ps = generate_uniform_projections_torch(num_views)
-    for idx in range(num_views):
-        kpts_2d = project(kpts_3d, P)
-        draw_numpy_2d(kpts_2d, 600, 600)
-        cv2.waitKey(0)
-
-    #P = create_projection_matrix(90, 45) 
-    #kpts_2d = project(kpts_3d, P)
-    #kpts_2d = kpts_2d.data.cpu().numpy()
-
-    #draw_numpy_2d(kpts_2d)
-    #draw_torch_2d(kpts_2d)
-    #draw_2d(kpts_2d)
-    #draw_3d(kpts_3d)
-    #cv2.waitKey(0)
+            P = generate_uniform_projection_matrices(1)
+            kpts_2d = project(kpts_3d, P)
+            draw_keypoints(kpts_2d, render_path)
 

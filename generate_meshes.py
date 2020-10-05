@@ -10,6 +10,7 @@ from pathlib import Path
 import argparse
 import json
 import pyrender
+import random
 
 import smplx
 
@@ -34,65 +35,29 @@ GENDER_DICT = {
         'neutral': 2
         }
 
-os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
+#os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
-'''
-def render_sample(vertices, faces, dataset_name, gender, subject_idx, 
-        pose_idx, num_views=4):
+def render_sample(vertices, faces, dataset_name, gender, subject_idx, pose_idx):
     img_dir = os.path.join(
             IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
-    for view_idx in range(num_views):
-        os.makedirs(os.path.join(img_dir, str(view_idx)), exist_ok=True)
+    os.makedirs(os.path.join(img_dir, '0'), exist_ok=True)
 
-    rot_step = 90
+    rot_step = random.randint(0, 360)
     imw, imh = 600, 600
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
 
     body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
             vertex_colors=np.tile(colors['grey'], (6890, 1)))
-    for view_idx in range(num_views):
-        mv.set_meshes([body_mesh], group_name='static')
+    apply_mesh_tranfsormations_([body_mesh],
+                                trimesh.transformations.rotation_matrix(
+                                    np.radians(rot_step), (0, 1, 0)))
+    mv.set_meshes([body_mesh], group_name='static')
 
-        image = mv.render()
-        image = Image.fromarray(image, 'RGB')
-        img_path = os.path.join(img_dir, str(view_idx), f'{pose_idx:08d}.png')
-        image.save(img_path)
-
-        # TODO: No need to apply the transformation twice. 
-        # You can move for 90 deg every time.
-        apply_mesh_tranfsormations_([body_mesh],
-                                    trimesh.transformations.rotation_matrix(
-                                        np.radians(rot_step), (0, 1, 0)))
-'''
-
-
-def render_sample(vertices, faces, dataset_name, gender, subject_idx, 
-        pose_idx, num_views=4):
-    img_dir = os.path.join(
-            IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
-    for view_idx in range(num_views):
-        os.makedirs(os.path.join(img_dir, str(view_idx)), exist_ok=True)
-
-    rot_step = 90
-
-    tri_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
-            vertex_colors=np.tile(colors['grey'], (6890, 1)))
-    mesh = pyrender.Mesh.from_trimesh(tri_mesh)
-    scene = pyrender.Scene()
-    scene.add(mesh)
-    viewer = pyrender.Viewer(scene, use_raymond_lighting=True)
-    image = viewer.render(scene)
-
+    image = mv.render()
     image = Image.fromarray(image, 'RGB')
-    img_path = os.path.join(img_dir, str(view_idx), f'{pose_idx:08d}.png')
+    img_path = os.path.join(img_dir, '0', f'{pose_idx:08d}.png')
     image.save(img_path)
-
-        # TODO: No need to apply the transformation twice. 
-        # You can move for 90 deg every time.
-#        apply_mesh_tranfsormations_([body_mesh],
-#                                    trimesh.transformations.rotation_matrix(
-#                                        np.radians(rot_step), (0, 1, 0)))
 
 
 def save_joints(joints, dataset_name, gender, subject_idx, pose_idx):
@@ -103,7 +68,7 @@ def save_joints(joints, dataset_name, gender, subject_idx, pose_idx):
 
 
 def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, 
-        sid, pid, num_views=4, render=False):
+        sid, pid, render=False):
     model.register_parameter('body_pose', 
             nn.Parameter(body_pose, requires_grad=False))
 
@@ -115,7 +80,7 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose,
         vertices = output.vertices.detach().cpu().numpy().squeeze()
         faces = model.faces.squeeze()
         render_sample(vertices, faces, dataset_name, gender, 
-                sid, pid, num_views=num_views)
+                sid, pid)
     save_joints(joints, dataset_name, gender, sid, pid)
 
 
@@ -137,16 +102,32 @@ def save_params(dataset_name, gender, sid, shape_coefs):
 
 
 def generate_subjects(dataset_name, gender, num_subjects, 
-        body_poses, vposer, num_views=4, render=False, num_coefs=10):
+        body_poses, vposer, regenerate=False, render=False, num_coefs=10):
+
+    def get_last_idx(dataset_name, gender):
+        subject_dirnames = [x for x in os.listdir(
+            GT_DIR_TEMPLATE.format(dataset_name)) if 'npy' not in x]
+        # IF the dataset is newly created.
+        if len(subject_dirnames) == 0:
+            return 0
+        last_idx = int(sorted(subject_dirnames)[-1][-4:])
+        return last_idx
+
+    if regenerate:
+        start_idx = 0
+    else:
+        start_idx = get_last_idx(dataset_name, gender)
+
     if num_subjects <= 0:
         return
-    np_coefs = np.random.normal(
-            0., 1., size=(num_subjects, 1, num_coefs)).astype(np.float32)
-    shape_coefs = torch.from_numpy(np_coefs)
+    np_shape_coefs = np.random.normal(0., 1., 
+            size=(num_subjects + start_idx, 1, num_coefs)).astype(np.float32)
+    shape_coefs = torch.from_numpy(np_shape_coefs)
     model = create_model(gender, body_poses[0])
 
-    for subject_idx in range(num_subjects):
-        save_params(dataset_name, gender, subject_idx, np_coefs)
+    # NOTE: If not regenerate, last shape will still be regenerated, which is OK.
+    for subject_idx in range(start_idx, start_idx + num_subjects):
+        save_params(dataset_name, gender, subject_idx, np_shape_coefs)
         for pose_idx in range(body_poses.shape[0]):
             print('{} {} pose {}'.format(gender, subject_idx, pose_idx))
             generate_sample(dataset_name,
@@ -156,7 +137,6 @@ def generate_subjects(dataset_name, gender, num_subjects,
                     body_poses[pose_idx],
                     subject_idx, 
                     pose_idx,
-                    num_views,
                     render
             )
 
@@ -176,12 +156,12 @@ def sample_poses(vposer_model, num_poses, loaded_np=None, output_type='aa'):
 
 
 def main(dataset_name, num_poses, num_neutral=0, num_male=0, 
-        num_female=0, num_views=4, regenerate_poses=False, 
-        render=False,num_coefs=10):
+        num_female=0, regenerate=False, 
+        render=False, num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
     
     poses_path = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), 'poses.npy')
-    create_poses_flag = regenerate_poses or (not os.path.exists(poses_path))
+    create_poses_flag = regenerate or (not os.path.exists(poses_path))
     # If poses are already generated, to not override them.
     if create_poses_flag:
         body_poses  = sample_poses(vposer_model, num_poses)
@@ -201,7 +181,7 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
             num_neutral, 
             body_poses, 
             vposer_model,
-            num_views,
+            regenerate,
             render
     )
     generate_subjects(dataset_name,
@@ -209,7 +189,7 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
             num_male, 
             body_poses, 
             vposer_model,
-            num_views,
+            regenerate,
             render
     )
     generate_subjects(dataset_name,
@@ -217,7 +197,7 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
             num_female, 
             body_poses, 
             vposer_model,
-            num_views,
+            regenerate,
             render
     )
 
@@ -226,16 +206,14 @@ def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
             usage='%(prog)s [OPTIONS]...',
             description='Generates specified number of meshes \
-            (subject x pose).'
+            (subject x pose). If --regenerate, then num_poses \
+            is redundant.'
             )
     parser.add_argument(
             '--name', type=str, help='dataset name')
     parser.add_argument(
             '--num_poses', type=int, default=0,
             help='# of poses per subject')
-    parser.add_argument(
-            '--num_views', type=int, default=4,
-            help='# of views to render')
     parser.add_argument(
             '--neutral', type=int, default=0,
             help='# of neutral gender subjects')
@@ -246,7 +224,7 @@ def init_argparse() -> argparse.ArgumentParser:
             '--female', type=int, default=0,
             help='# of female subjects')
     parser.add_argument(
-            '--regenerate_poses', dest='regenerate_poses',
+            '--regenerate', dest='regenerate',
             action='store_true', help='regenerate pose params')
     parser.add_argument(
             '--render', dest='render',
@@ -267,12 +245,12 @@ def check_args(args):
 if __name__ == '__main__':
     parser = init_argparse()
     args = check_args(parser.parse_args())
+    print(args.render)
     main(dataset_name=args.name,
          num_poses=args.num_poses, 
          num_neutral=args.neutral,
          num_male=args.male,
          num_female=args.female,
-         num_views=args.num_views,
-         regenerate_poses=args.regenerate_poses,
+         regenerate=args.regenerate,
          render=args.render)
 
