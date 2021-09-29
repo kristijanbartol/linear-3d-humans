@@ -11,6 +11,7 @@ import argparse
 import json
 import pyrender
 import random
+import itertools
 
 import smplx
 
@@ -38,26 +39,43 @@ GENDER_DICT = {
 #os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
 
+def img_to_silhouette(img):
+    img = img.copy()
+    img.setflags(write=1)
+    img[img == 255] = 0
+    img[img > 0] = 255
+    
+    return img
+
+
 def render_sample(vertices, faces, dataset_name, gender, subject_idx, pose_idx):
     img_dir = os.path.join(
             IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
     os.makedirs(os.path.join(img_dir, '0'), exist_ok=True)
 
     rot_step = random.randint(0, 360)
-    imw, imh = 600, 600
+    imw, imh = 2000, 2000
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
+    mv.set_background_color(colors['black'])
 
     body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
             vertex_colors=np.tile(colors['grey'], (6890, 1)))
-    apply_mesh_tranfsormations_([body_mesh],
-                                trimesh.transformations.rotation_matrix(
-                                    np.radians(rot_step), (0, 1, 0)))
+    #apply_mesh_tranfsormations_([body_mesh],
+    #                            trimesh.transformations.rotation_matrix(
+    #                                np.radians(rot_step), (0, 1, 0)))
     mv.set_meshes([body_mesh], group_name='static')
 
-    image = mv.render()
-    image = Image.fromarray(image, 'RGB')
-    img_path = os.path.join(img_dir, '0', f'{pose_idx:08d}.png')
-    image.save(img_path)
+    img = mv.render()
+
+    rgb = Image.fromarray(img, 'RGB')
+    bw = img_to_silhouette(img)
+    bw = Image.fromarray(bw, 'RGB')
+    
+    rgb_path = os.path.join(img_dir, '0', f'rgb_{pose_idx:08d}.png')
+    bw_path = os.path.join(img_dir, '0', f'silhouette_{pose_idx:08d}.png')
+    
+    rgb.save(rgb_path)
+    bw.save(bw_path)
 
 
 def save_joints(joints, dataset_name, gender, subject_idx, pose_idx):
@@ -120,8 +138,17 @@ def generate_subjects(dataset_name, gender, num_subjects,
 
     if num_subjects <= 0:
         return
-    np_shape_coefs = np.random.normal(0., 1., 
-            size=(num_subjects + start_idx, 1, num_coefs)).astype(np.float32)
+
+    shape_combination_coefs = list(itertools.combinations_with_replacement([0., 0.4, 0.8], 10))
+    num_subjects = min(num_subjects, len(shape_combination_coefs))
+    #np_shape_coefs = np.random.normal(0., 1., 
+    #        size=(num_subjects + start_idx, 1, num_coefs)).astype(np.float32)
+    np_shape_coefs = np.empty(shape=(num_subjects + start_idx, 1, num_coefs), dtype=np.float32)
+    for perm_idx, perm in enumerate(
+            list(shape_combination_coefs)[start_idx : start_idx + num_subjects]):
+        perm = np.array(perm)
+        perm[0] = 0.
+        np_shape_coefs[perm_idx + start_idx] = perm
     shape_coefs = torch.from_numpy(np_shape_coefs)
     model = create_model(gender, body_poses[0])
 
@@ -148,10 +175,15 @@ def sample_poses(vposer_model, num_poses, loaded_np=None, output_type='aa'):
     if loaded_np is not None:
         return torch.tensor(loaded_np, dtype=dtype).to(device)
     with torch.no_grad():
-        Zgen = torch.tensor(np.random.normal(0., 1., 
-            size=(num_poses, vposer_model.latentD)), dtype=dtype).to(device)
+        #Zgen = torch.tensor(np.random.normal(0., 1., 
+        #    size=(num_poses, vposer_model.latentD)), dtype=dtype).to(device)
+        Zgen = torch.tensor(np.zeros(shape=(num_poses, vposer_model.latentD)), 
+            dtype=dtype).to(device)
     body_poses = vposer_model.decode(Zgen, output_type=output_type)
     body_poses = body_poses.reshape(num_poses, 1, -1)
+
+    body_poses = torch.zeros(size=(1, 1, body_poses.shape[2]))
+
     return body_poses
 
 
@@ -227,8 +259,15 @@ def init_argparse() -> argparse.ArgumentParser:
             '--regenerate', dest='regenerate',
             action='store_true', help='regenerate pose params')
     parser.add_argument(
+            '--zero_pose', dest='zero_pose',
+            action='store_true', help='generate fixed, zero (neutral) poses')
+    parser.add_argument(
             '--render', dest='render',
             action='store_true', help='render poses')
+    parser.add_argument(
+            '--silhouette', dest='silhouette',
+            action='store_true', help='render silhouette'
+    )
 
     return parser
 
