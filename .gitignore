@@ -107,3 +107,12 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# Binary
+*.obj
+
+# Other
+pyopengl/
+models/
+human_body_prior/
+data/
+vposer*/

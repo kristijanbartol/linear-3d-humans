@@ -23,6 +23,9 @@ from human_body_prior.tools.omni_tools import colors, makepath
 from mesh_viewer import MeshViewer
 from human_body_prior.tools.visualization_tools import imagearray2file, smpl_params2ply
 
+from prepare import extract_measurements, save_measurements
+from utils import all_combinations_with_permutations
+
 
 MODELS_DIR = 'models/'
 VPOSER_DIR = 'vposer_v1_0/'
@@ -48,7 +51,7 @@ def img_to_silhouette(img):
     return img
 
 
-def render_sample(vertices, faces, dataset_name, gender, subject_idx, pose_idx):
+def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
     img_dir = os.path.join(
             IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
     os.makedirs(os.path.join(img_dir, '0'), exist_ok=True)
@@ -58,12 +61,12 @@ def render_sample(vertices, faces, dataset_name, gender, subject_idx, pose_idx):
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
     mv.set_background_color(colors['black'])
 
-    body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
-            vertex_colors=np.tile(colors['grey'], (6890, 1)))
     #apply_mesh_tranfsormations_([body_mesh],
     #                            trimesh.transformations.rotation_matrix(
     #                                np.radians(rot_step), (0, 1, 0)))
     mv.set_meshes([body_mesh], group_name='static')
+
+    body_mesh.export('template.obj')
 
     img = mv.render()
 
@@ -71,22 +74,27 @@ def render_sample(vertices, faces, dataset_name, gender, subject_idx, pose_idx):
     bw = img_to_silhouette(img)
     bw = Image.fromarray(bw, 'RGB')
     
-    rgb_path = os.path.join(img_dir, '0', f'rgb_{pose_idx:08d}.png')
-    bw_path = os.path.join(img_dir, '0', f'silhouette_{pose_idx:08d}.png')
+    rgb_path = os.path.join(img_dir, '0', f'rgb_{pose_idx:06d}.png')
+    bw_path = os.path.join(img_dir, '0', f'silhouette_{pose_idx:06d}.png')
     
     rgb.save(rgb_path)
     bw.save(bw_path)
 
+    # TODO: Generate at least two silhouettes (front, side).
+    return [rgb], [bw]
 
-def save_joints(joints, dataset_name, gender, subject_idx, pose_idx):
-    joint_dir = os.path.join(
-            GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
-    Path(joint_dir).mkdir(parents=True, exist_ok=True)
-    np.save(os.path.join(joint_dir, f'{pose_idx:08d}.npy'), joints)
+
+def save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, measurements):
+    np.save(os.path.join(save_dir, f'joints_{pid:06d}.npy'), joints)
+    np.save(os.path.join(save_dir, f'verts_{pid:06d}.npy'), vertices)
+    np.save(os.path.join(save_dir, f'faces_{pid:06d}.npy'), faces)
+    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
+    np.save(os.path.join(save_dir, f'pose_{pid:06d}.npy'), body_pose)
+    save_measurements(save_dir, measurements)
 
 
 def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, 
-        sid, pid, render=False):
+        sid, pid):
     model.register_parameter('body_pose', 
             nn.Parameter(body_pose, requires_grad=False))
 
@@ -94,12 +102,19 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose,
 
     joints = output.joints.detach().cpu().numpy().squeeze()
 
-    if render:
-        vertices = output.vertices.detach().cpu().numpy().squeeze()
-        faces = model.faces.squeeze()
-        render_sample(vertices, faces, dataset_name, gender, 
-                sid, pid)
-    save_joints(joints, dataset_name, gender, sid, pid)
+    vertices = output.vertices.detach().cpu().numpy().squeeze()
+    faces = model.faces.squeeze()
+    body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+        vertex_colors=np.tile(colors['grey'], (6890, 1)))
+    images, silhouettes = render_sample(body_mesh, dataset_name, gender, 
+            sid, pid)
+
+    measurements = extract_measurements(vertices, body_mesh.volume)
+    
+    save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+
+    save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, measurements)
 
 
 def create_model(gender, init_body_pose, num_coefs=10):
@@ -110,17 +125,8 @@ def create_model(gender, init_body_pose, num_coefs=10):
                         ext='npz')
 
 
-def save_params(dataset_name, gender, sid, shape_coefs):
-    save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
-    os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, 'params.json')
-    params = {'betas': shape_coefs[sid].tolist(), 'gender': GENDER_DICT[gender]}
-    with open(save_path, 'w') as fjson:
-        json.dump(params, fjson)
-
-
 def generate_subjects(dataset_name, gender, num_subjects, 
-        body_poses, vposer, regenerate=False, render=False, num_coefs=10):
+        body_poses, vposer, regenerate=False, num_coefs=10):
 
     def get_last_idx(dataset_name, gender):
         subject_dirnames = [x for x in os.listdir(
@@ -139,7 +145,7 @@ def generate_subjects(dataset_name, gender, num_subjects,
     if num_subjects <= 0:
         return
 
-    shape_combination_coefs = list(itertools.combinations_with_replacement([0., 0.4, 0.8], 10))
+    shape_combination_coefs = all_combinations_with_permutations([0.0, 0.4, 0.8], num_coefs)
     num_subjects = min(num_subjects, len(shape_combination_coefs))
     #np_shape_coefs = np.random.normal(0., 1., 
     #        size=(num_subjects + start_idx, 1, num_coefs)).astype(np.float32)
@@ -154,7 +160,8 @@ def generate_subjects(dataset_name, gender, num_subjects,
 
     # NOTE: If not regenerate, last shape will still be regenerated, which is OK.
     for subject_idx in range(start_idx, start_idx + num_subjects):
-        save_params(dataset_name, gender, subject_idx, np_shape_coefs)
+        # TODO: Move all savings inside generate_sample function.
+        #save_params(dataset_name, gender, subject_idx, np_shape_coefs)
         for pose_idx in range(body_poses.shape[0]):
             print('{} {} pose {}'.format(gender, subject_idx, pose_idx))
             generate_sample(dataset_name,
@@ -163,8 +170,7 @@ def generate_subjects(dataset_name, gender, num_subjects,
                     shape_coefs[subject_idx], 
                     body_poses[pose_idx],
                     subject_idx, 
-                    pose_idx,
-                    render
+                    pose_idx
             )
 
 
@@ -188,14 +194,14 @@ def sample_poses(vposer_model, num_poses, loaded_np=None, output_type='aa'):
 
 
 def main(dataset_name, num_poses, num_neutral=0, num_male=0, 
-        num_female=0, regenerate=False, 
-        render=False, num_coefs=10):
+        num_female=0, regenerate=False, num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
     
     poses_path = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), 'poses.npy')
     create_poses_flag = regenerate or (not os.path.exists(poses_path))
     # If poses are already generated, to not override them.
     if create_poses_flag:
+        # NOTE: For now, using only neutral pose.
         body_poses  = sample_poses(vposer_model, num_poses)
         gt_dir = GT_DIR_TEMPLATE.format(dataset_name)
         Path(gt_dir).mkdir(parents=True, exist_ok=True)
@@ -213,24 +219,21 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
             num_neutral, 
             body_poses, 
             vposer_model,
-            regenerate,
-            render
+            regenerate
     )
     generate_subjects(dataset_name,
             'male', 
             num_male, 
             body_poses, 
             vposer_model,
-            regenerate,
-            render
+            regenerate
     )
     generate_subjects(dataset_name,
             'female', 
             num_female, 
             body_poses, 
             vposer_model,
-            regenerate,
-            render
+            regenerate
     )
 
 
@@ -261,13 +264,6 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
             '--zero_pose', dest='zero_pose',
             action='store_true', help='generate fixed, zero (neutral) poses')
-    parser.add_argument(
-            '--render', dest='render',
-            action='store_true', help='render poses')
-    parser.add_argument(
-            '--silhouette', dest='silhouette',
-            action='store_true', help='render silhouette'
-    )
 
     return parser
 
@@ -284,12 +280,10 @@ def check_args(args):
 if __name__ == '__main__':
     parser = init_argparse()
     args = check_args(parser.parse_args())
-    print(args.render)
     main(dataset_name=args.name,
          num_poses=args.num_poses, 
          num_neutral=args.neutral,
          num_male=args.male,
          num_female=args.female,
-         regenerate=args.regenerate,
-         render=args.render)
+         regenerate=args.regenerate)
 
