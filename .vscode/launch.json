@@ -10,10 +10,16 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+            //"args": [
+            //    "--name", "sensors",
+            //    "--num_poses", "1",
+            //    "--male", "100",
+            //],
+
             "args": [
-                "--name", "sensors",
-                "--num_poses", "1",
-                "--male", "100",
+                "--model-folder", "models/",
+                "--plot-joints", "True",
+                "--gender", "neutral"
             ]
         }
     ]

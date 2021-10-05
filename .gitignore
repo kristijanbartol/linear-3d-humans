@@ -116,3 +116,5 @@ models/
 human_body_prior/
 data/
 vposer*/
+
+git_token

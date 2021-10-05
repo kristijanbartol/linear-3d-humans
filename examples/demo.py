@@ -44,10 +44,12 @@ def main(model_folder,
 
     betas, expression = None, None
     if sample_shape:
-        betas = torch.randn([1, model.num_betas], dtype=torch.float32)
+        #betas = torch.randn([1, model.num_betas], dtype=torch.float32)
+        betas = torch.randn([1, 10], dtype=torch.float32)
     if sample_expression:
         expression = torch.randn(
-            [1, model.num_expression_coeffs], dtype=torch.float32)
+            #[1, model.num_expression_coeffs], dtype=torch.float32)
+            [1, 10], dtype=torch.float32)
 
     output = model(betas=betas, expression=expression,
                    return_verts=True)
@@ -72,8 +74,10 @@ def main(model_folder,
         if plot_joints:
             sm = trimesh.creation.uv_sphere(radius=0.005)
             sm.visual.vertex_colors = [0.9, 0.1, 0.1, 1.0]
-            tfs = np.tile(np.eye(4), (len(joints), 1, 1))
-            tfs[:, :3, 3] = joints
+            #tfs = np.tile(np.eye(4), (len(joints), 1, 1))
+            #tfs[:, :3, 3] = joints
+            tfs = np.tile(np.eye(4), (len(joints) - 1, 1, 1))
+            tfs[:, :3, 3] = np.concatenate([joints[:2], joints[3:]], axis=0)
             joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
             scene.add(joints_pcl)
 
