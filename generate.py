@@ -80,7 +80,7 @@ def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
     return [rgb], [bw]
 
 
-def save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, volume):
+def save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_pose, volume):
     np.save(os.path.join(save_dir, f'joints_{pid:06d}.npy'), joints)
     np.save(os.path.join(save_dir, f'verts_{pid:06d}.npy'), vertices)
     np.save(os.path.join(save_dir, f'faces_{pid:06d}.npy'), faces)
@@ -102,13 +102,14 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose,
     faces = model.faces.squeeze()
     body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
         vertex_colors=np.tile(colors['grey'], (6890, 1)))
-    images, silhouettes = render_sample(body_mesh, dataset_name, gender, 
-            sid, pid)
+    #images, silhouettes = render_sample(body_mesh, dataset_name, gender, 
+    #        sid, pid)
+    silhouettes = None
     
     save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-    save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, body_mesh.volume)
+    save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_pose, body_mesh.volume)
 
 
 def create_model(gender, init_body_pose, num_coefs=10):
@@ -124,7 +125,8 @@ def generate_subjects(dataset_name, gender, num_subjects,
 
     def get_last_idx(dataset_name, gender):
         subject_dirnames = [x for x in os.listdir(
-            GT_DIR_TEMPLATE.format(dataset_name)) if 'npy' not in x]
+            GT_DIR_TEMPLATE.format(dataset_name)) if 'npy' not in x \
+                and x.startswith(gender)]
         # IF the dataset is newly created.
         if len(subject_dirnames) == 0:
             return 0

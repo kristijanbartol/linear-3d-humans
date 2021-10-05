@@ -10,17 +10,26 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": [
-                "--name", "sensors",
-                "--num_poses", "1",
-                "--male", "100",
-            ],
+            // generate.py
+            //"args": [
+            //    "--name", "sensors",
+            //    "--num_poses", "1",
+            //    "--male", "1000",
+            //    "--female", "1000",
+            //],
 
+            // demo.py
             //"args": [
             //    "--model-folder", "models/",
             //    "--plot-joints", "True",
             //    "--gender", "neutral"
             //]
+
+            // train.py
+            "args": [
+                "--data_root", "data/",
+                "--dataset_name", "sensors"
+            ]
         }
     ]
 }
