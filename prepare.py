@@ -227,7 +227,7 @@ class Regressors():
     def R2(self):
         # [overall height, weight]
         overall_height = self.pose_features.overall_height
-        weight = self.volume    # TODO: Use formula for weight
+        weight = self.weight
         return np.array([overall_height, weight], dtype=np.float32)
 
     @property
@@ -293,4 +293,5 @@ def prepare(args):
         samples_in.append(prepare_in(sample_dict, args.regressor_type))
         samples_out.append(sample_dict['shape'])
 
-    return np.array(samples_in), np.array(samples_out)
+    # TODO: Move index selection of samples_out to generate.py
+    return np.array(samples_in), np.array(samples_out)[:, 0]

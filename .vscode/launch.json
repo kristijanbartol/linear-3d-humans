@@ -28,7 +28,8 @@
             // train.py
             "args": [
                 "--data_root", "data/",
-                "--dataset_name", "sensors"
+                "--dataset_name", "sensors",
+                "--regressor_type", "R4"
             ]
         }
     ]
