@@ -213,11 +213,11 @@ class PoseFeatures():
 # TODO: Implement SilhouetteFeatures.
 class SilhouetteFeatures():
 
-    def __init__(self):
+    def __init__(self, silhouettes):
         pass
 
 
-def Regressors():
+class Regressors():
 
     def __init__(self, pose_features, silhouette_features, weight):
         self.pose_features = pose_features
@@ -259,19 +259,38 @@ def Regressors():
         )
 
 
-def save_measurements(save_dir, measurements):
-    # TODO: Implement __str__ method.
-    attr_list = [x for x in dir(measurements) if not x.startswith('__') and x[0].islower()]
-    measure_dict = dict(zip(attr_list, [str(getattr(measurements, x)) for x in attr_list]))
-    with open(os.path.join(save_dir, 'measurements.json'), 'w') as json_file:
-        json.dump(measure_dict, json_file)
-
-
 # NOTE: For now, use shape parameters as output.
-def prepare(joints, silhouettes, vertices, volume, regressor_type='R4'):
-    pose_features = PoseFeatures(joints)
-    silhouette_features = SilhouetteFeatures()
-    measurements = MeshMeasurements(vertices, volume)
-    # NOTE: For now, assume known weight.
+def prepare_in(sample_dict, regressor_type='R4'):
+    pose_features = PoseFeatures(sample_dict['joints'])
+    silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'])
+    measurements = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
     regressors = Regressors(pose_features, silhouette_features, measurements.weight)
     return getattr(regressors, regressor_type)
+
+
+def prepare(args):
+    data_dir = os.path.join(args.data_root, args.dataset_name, 'gt')
+    samples_in = []
+    samples_out = []
+
+    for subj_dirname in os.listdir(data_dir):
+        subj_dirpath = os.path.join(data_dir, subj_dirname)
+        sample_dict = {
+            'faces': None,
+            'joints': None,
+            'pose': None,
+            'shape': None,
+            'silhouettes': None,
+            'verts': None,
+            'volume': None  # optional
+        }
+
+        for fname in os.listdir(subj_dirpath):
+            key = fname.split('.')[0].split('_')[0]
+            data = np.load(os.path.join(subj_dirpath, fname))
+            sample_dict[key] = data
+
+        samples_in.append(prepare_in(sample_dict, args.regressor_type))
+        samples_out.append(sample_dict['shape'])
+
+    return np.array(samples_in), np.array(samples_out)

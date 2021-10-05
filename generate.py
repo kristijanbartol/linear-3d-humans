@@ -22,8 +22,6 @@ from human_body_prior.tools.omni_tools import colors, makepath
 #from human_body_prior.mesh.mesh_viewer import MeshViewer
 from mesh_viewer import MeshViewer
 from human_body_prior.tools.visualization_tools import imagearray2file, smpl_params2ply
-
-from prepare import extract_measurements, save_measurements
 from utils import all_combinations_with_permutations
 
 
@@ -66,8 +64,6 @@ def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
     #                                np.radians(rot_step), (0, 1, 0)))
     mv.set_meshes([body_mesh], group_name='static')
 
-    body_mesh.export('template.obj')
-
     img = mv.render()
 
     rgb = Image.fromarray(img, 'RGB')
@@ -84,13 +80,13 @@ def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
     return [rgb], [bw]
 
 
-def save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, measurements):
+def save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, volume):
     np.save(os.path.join(save_dir, f'joints_{pid:06d}.npy'), joints)
     np.save(os.path.join(save_dir, f'verts_{pid:06d}.npy'), vertices)
     np.save(os.path.join(save_dir, f'faces_{pid:06d}.npy'), faces)
     np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
     np.save(os.path.join(save_dir, f'pose_{pid:06d}.npy'), body_pose)
-    save_measurements(save_dir, measurements)
+    np.save(os.path.join(save_dir, f'volume.npy'), volume)
 
 
 def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, 
@@ -108,13 +104,11 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose,
         vertex_colors=np.tile(colors['grey'], (6890, 1)))
     images, silhouettes = render_sample(body_mesh, dataset_name, gender, 
             sid, pid)
-
-    measurements = extract_measurements(vertices, body_mesh.volume)
     
     save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-    save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, measurements)
+    save(save_dir, pid, joints, vertices, faces, shape_coefs, body_pose, body_mesh.volume)
 
 
 def create_model(gender, init_body_pose, num_coefs=10):
@@ -197,6 +191,7 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
         num_female=0, regenerate=False, num_coefs=10):
     vposer_model, _ = load_vposer(VPOSER_DIR, vp_model='snapshot')
     
+    '''
     poses_path = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), 'poses.npy')
     create_poses_flag = regenerate or (not os.path.exists(poses_path))
     # If poses are already generated, to not override them.
@@ -208,6 +203,8 @@ def main(dataset_name, num_poses, num_neutral=0, num_male=0,
         np.save(os.path.join(gt_dir, 'poses.npy'), body_poses.cpu().detach().numpy())
     else:
         body_poses = torch.tensor(np.load(poses_path))
+    '''
+    body_poses = torch.zeros(size=(1, 1, vposer_model.num_joints * 3))
     
     # Create dataset dir and img/ and gt/ subdirs.
     Path(IMG_DIR_TEMPLATE.format(dataset_name)).mkdir(

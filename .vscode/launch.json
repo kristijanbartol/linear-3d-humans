@@ -10,17 +10,17 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            //"args": [
-            //    "--name", "sensors",
-            //    "--num_poses", "1",
-            //    "--male", "100",
-            //],
-
             "args": [
-                "--model-folder", "models/",
-                "--plot-joints", "True",
-                "--gender", "neutral"
-            ]
+                "--name", "sensors",
+                "--num_poses", "1",
+                "--male", "100",
+            ],
+
+            //"args": [
+            //    "--model-folder", "models/",
+            //    "--plot-joints", "True",
+            //    "--gender", "neutral"
+            //]
         }
     ]
 }
