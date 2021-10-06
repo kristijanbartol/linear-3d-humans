@@ -80,7 +80,7 @@ def save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_
     np.save(os.path.join(save_dir, f'verts_{pid:06d}.npy'), vertices)
     np.save(os.path.join(save_dir, f'faces_{pid:06d}.npy'), faces)
     np.save(os.path.join(save_dir, f'silhouettes.npy'), silhouettes)     # use silhouettes only in neutral pose
-    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
+    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs[0])
     np.save(os.path.join(save_dir, f'pose_{pid:06d}.npy'), body_pose)
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
 

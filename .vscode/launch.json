@@ -12,10 +12,10 @@
             "console": "integratedTerminal",
             // generate.py
             "args": [
-                "--name", "sensors-male",
+                "--name", "tmp",
                 "--num_poses", "1",
                 "--male", "1000",
-                "--female", "1000",
+            //    "--female", "1000",
             ],
 
             // demo.py

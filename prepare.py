@@ -209,11 +209,47 @@ class PoseFeatures():
         )
 
 
-# TODO: Implement SilhouetteFeatures.
 class SilhouetteFeatures():
 
-    def __init__(self, silhouettes):
-        pass
+    def __init__(self, silhouettes, pose_features):
+        self.silhouettes = silhouettes
+        self.pose_features = pose_features
+
+    @property
+    def waist_width(self):  # front silhouette
+        idx1 = self.pose_features.joints[self.pose_features.SPINE3][0]
+        idx2 = self.pose_features.joint[self.pose_features.LEFT_HIP][0]
+        ratio = 0.75
+
+        row_idx = idx1 + ratio * idx2
+        return self.silhouettes[0, row_idx].sum()
+
+    @property
+    def waist_depth(self):  # side silhouette
+        idx1 = self.pose_features.joints[self.pose_features.SPINE3][0]
+        idx2 = self.pose_features.joint[self.pose_features.LEFT_HIP][0]
+        ratio = 0.75
+
+        row_idx = idx1 + ratio * idx2
+        return self.silhouettes[1, row_idx].sum()
+
+    @property
+    def thigh_width(self):  # front silhouette
+        idx1 = self.pose_features.joints[self.pose_features.LEFT_HIP][0]
+        idx2 = self.pose_features.joint[self.pose_features.LEFT_HEEL][0]
+        ratio = 0.15
+
+        row_idx = idx1 + ratio * idx2
+        return self.silhouettes[0, row_idx].sum() / 2.
+
+    @property
+    def biceps_width(self): # front silhouette
+        idx1 = self.pose_features.joints[self.pose_features.LEFT_WRIST][2]
+        idx2 = self.pose_features.joints[self.pose_features.LEFT_SHOULDER][2]
+        ratio = 0.8
+
+        column_idx = idx1 + ratio * idx2
+        return self.silhouette[0, :, column_idx].sum()
 
 
 class Regressors():
@@ -261,7 +297,7 @@ class Regressors():
 # NOTE: For now, use shape parameters as output.
 def prepare_in(sample_dict, regressor_type='R4'):
     pose_features = PoseFeatures(sample_dict['joints'])
-    silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'])
+    silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'], pose_features)
     measurements = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
     regressors = Regressors(pose_features, silhouette_features, measurements.weight)
     return getattr(regressors, regressor_type), measurements
