@@ -11,12 +11,12 @@
             "program": "${file}",
             "console": "integratedTerminal",
             // generate.py
-            //"args": [
-            //    "--name", "sensors-male",
-            //    "--num_poses", "1",
-            //    "--male", "1000",
-            //    "--female", "1000",
-            //],
+            "args": [
+                "--name", "sensors-male",
+                "--num_poses", "1",
+                "--male", "1000",
+                "--female", "1000",
+            ],
 
             // demo.py
             //"args": [
@@ -26,12 +26,12 @@
             //]
 
             // train.py
-            "args": [
-                "--data_root", "data/",
-                "--dataset_name", "sensors-male",
-                "--regressor_type", "R4",
-                "--model", "mlp"
-            ]
+            //"args": [
+            //    "--data_root", "data/",
+            //    "--dataset_name", "sensors-male",
+            //    "--regressor_type", "R4",
+            //    "--model", "tree"
+            //]
         }
     ]
 }

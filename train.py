@@ -31,6 +31,15 @@ class Models():
     def mlp():
         return MLPRegressor(hidden_layer_sizes=(2000), random_state=Models.RANDOM_STATE, max_iter=500)
 
+    @staticmethod
+    def feature_importances(model):
+        if type(model) == MLPRegressor:
+            return None
+        elif type(model) == DecisionTreeRegressor:
+            return model.feature_importances_
+        else:
+            return model.coef_
+
 
 def init_argparse():
     parser = argparse.ArgumentParser()
@@ -56,15 +65,15 @@ if __name__ == '__main__':
     parser = init_argparse()
     args = parser.parse_args()
 
-    print('Preparing dataset...')
+    print(f'Preparing {args.dataset_name} dataset...')
     X, y, measurements = prepare(args)
     print('Train/test splitting...')
     #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
 
-    print('Creating model...')
+    print(f'Creating {args.model} model...')
     model = getattr(Models, args.model)()
-    print('Fitting model...')
+    print(f'Fitting model using {args.regressor_type} regressor...')
     reg = model.fit(X_train, y_train)
     print('Predicting...')
     y_predict = reg.predict(X_test)

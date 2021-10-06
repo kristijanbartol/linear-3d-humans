@@ -44,9 +44,9 @@ def img_to_silhouette(img):
     img = img.copy()
     img.setflags(write=1)
     img[img == 255] = 0
-    img[img > 0] = 255
+    img[img > 0] = 1
     
-    return img
+    return img[:, :, 0]
 
 
 def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
@@ -54,36 +54,32 @@ def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
             IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
     os.makedirs(os.path.join(img_dir, '0'), exist_ok=True)
 
-    rot_step = random.randint(0, 360)
-    imw, imh = 2000, 2000
+    imw, imh = 1600, 1600
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
     mv.set_background_color(colors['black'])
 
-    #apply_mesh_tranfsormations_([body_mesh],
-    #                            trimesh.transformations.rotation_matrix(
-    #                                np.radians(rot_step), (0, 1, 0)))
-    mv.set_meshes([body_mesh], group_name='static')
+    silhouettes = []
+    for view, angle in zip(['front', 'side'], [0, 90]):
+        apply_mesh_tranfsormations_([body_mesh],
+                                    trimesh.transformations.rotation_matrix(
+                                        np.radians(angle), (0, 1, 0)))
+        mv.set_meshes([body_mesh], group_name='static')
+        img = mv.render()
 
-    img = mv.render()
+        rgb = Image.fromarray(img, 'RGB')
+        rgb_path = os.path.join(img_dir, '0', f'rgb_{view}_{pose_idx:06d}.png')
+        rgb.save(rgb_path)
 
-    rgb = Image.fromarray(img, 'RGB')
-    bw = img_to_silhouette(img)
-    bw = Image.fromarray(bw, 'RGB')
-    
-    rgb_path = os.path.join(img_dir, '0', f'rgb_{pose_idx:06d}.png')
-    bw_path = os.path.join(img_dir, '0', f'silhouette_{pose_idx:06d}.png')
-    
-    rgb.save(rgb_path)
-    bw.save(bw_path)
+        silhouettes.append(img_to_silhouette(img))
 
-    # TODO: Generate at least two silhouettes (front, side).
-    return [rgb], [bw]
+    return silhouettes
 
 
 def save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_pose, volume):
     np.save(os.path.join(save_dir, f'joints_{pid:06d}.npy'), joints)
     np.save(os.path.join(save_dir, f'verts_{pid:06d}.npy'), vertices)
     np.save(os.path.join(save_dir, f'faces_{pid:06d}.npy'), faces)
+    np.save(os.path.join(save_dir, f'silhouettes.npy'), silhouettes)     # use silhouettes only in neutral pose
     np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
     np.save(os.path.join(save_dir, f'pose_{pid:06d}.npy'), body_pose)
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
@@ -102,9 +98,8 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose,
     faces = model.faces.squeeze()
     body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
         vertex_colors=np.tile(colors['grey'], (6890, 1)))
-    #images, silhouettes = render_sample(body_mesh, dataset_name, gender, 
-    #        sid, pid)
-    silhouettes = None
+    silhouettes = render_sample(body_mesh, dataset_name, gender, 
+            sid, pid)
     
     save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
     Path(save_dir).mkdir(parents=True, exist_ok=True)
