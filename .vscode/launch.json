@@ -12,10 +12,10 @@
             "console": "integratedTerminal",
             // generate.py
             //"args": [
-            //    "--name", "sensors",
+            //    "--name", "sensors-male",
             //    "--num_poses", "1",
             //    "--male", "1000",
-            //    "--female", "10000",
+            //    "--female", "1000",
             //],
 
             // demo.py
@@ -28,8 +28,9 @@
             // train.py
             "args": [
                 "--data_root", "data/",
-                "--dataset_name", "sensors",
-                "--regressor_type", "R4"
+                "--dataset_name", "sensors-male",
+                "--regressor_type", "R4",
+                "--model", "mlp"
             ]
         }
     ]
