@@ -9,8 +9,7 @@ def get_dist(v1, v2):
 
 
 def get_height(v1, v2):
-    # TODO: Verify that Z coordinate is on index 2.
-    return (v1 - v2)[2]
+    return np.abs((v1 - v2))[1]
 
 
 class MeshMeasurements:
@@ -265,13 +264,14 @@ def prepare_in(sample_dict, regressor_type='R4'):
     silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'])
     measurements = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
     regressors = Regressors(pose_features, silhouette_features, measurements.weight)
-    return getattr(regressors, regressor_type)
+    return getattr(regressors, regressor_type), measurements
 
 
 def prepare(args):
     data_dir = os.path.join(args.data_root, args.dataset_name, 'gt')
     samples_in = []
     samples_out = []
+    measurements_all = []
 
     for subj_dirname in os.listdir(data_dir):
         subj_dirpath = os.path.join(data_dir, subj_dirname)
@@ -290,8 +290,13 @@ def prepare(args):
             data = np.load(os.path.join(subj_dirpath, fname))
             sample_dict[key] = data
 
-        samples_in.append(prepare_in(sample_dict, args.regressor_type))
+        sample_in, measurements_object = prepare_in(sample_dict, args.regressor_type)
+
+        sample_measurements = [getattr(measurements_object, x) for x in dir(measurements_object) if '_' in x and x[0].islower()]
+
+        samples_in.append(sample_in)
+        measurements_all.append(sample_measurements)
         samples_out.append(sample_dict['shape'])
 
     # TODO: Move index selection of samples_out to generate.py
-    return np.array(samples_in), np.array(samples_out)[:, 0]
+    return np.array(samples_in), np.array(samples_out)[:, 0], np.array(measurements_all)

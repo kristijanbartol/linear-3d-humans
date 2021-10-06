@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
 
 from prepare import prepare
 
@@ -22,7 +23,18 @@ if __name__ == '__main__':
     parser = init_argparse()
     args = parser.parse_args()
 
-    X, y = prepare(args)
+    print('Preparing dataset...')
+    X, y, measurements = prepare(args)
+    print('Train/test splitting...')
+    #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, measurements, test_size=0.33, random_state=42)
 
+    print('Creating model...')
     model = LinearRegression()
-    reg = model.fit(X, y)
+    print('Fitting model...')
+    reg = model.fit(X_train, y_train)
+    print('Predicting...')
+    y_predict = reg.predict(X_test)
+
+    error = np.mean(np.abs(y_predict - y_test))
+    print(f'Average absolute error: {error}')

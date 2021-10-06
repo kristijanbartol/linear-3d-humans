@@ -15,7 +15,7 @@
             //    "--name", "sensors",
             //    "--num_poses", "1",
             //    "--male", "1000",
-            //    "--female", "1000",
+            //    "--female", "10000",
             //],
 
             // demo.py
