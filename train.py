@@ -1,14 +1,14 @@
 import argparse
 import numpy as np
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
-from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 
 from prepare import prepare
+from metrics import evaluate
 
 
 class Models():
@@ -66,10 +66,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(f'Preparing {args.dataset_name} dataset...')
-    X, y, measurements = prepare(args)
+    X, y, measurements, genders = prepare(args)
     print('Train/test splitting...')
-    #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+    X_train, X_test, y_train, y_test, _, gt_meas_test, _, gender_test = train_test_split(
+        X, y, measurements, genders, test_size=0.33, random_state=42)
 
     print(f'Creating {args.model} model...')
     model = getattr(Models, args.model)()
@@ -77,6 +77,7 @@ if __name__ == '__main__':
     reg = model.fit(X_train, y_train)
     print('Predicting...')
     y_predict = reg.predict(X_test)
+    print('Evaluating...')
+    params_errors, measurement_errors, s2s_errors = evaluate(y_predict, y_test, gt_meas_test, gender_test)
 
-    error = np.mean(np.abs(y_predict - y_test))
-    print(f'Average absolute error: {error}')
+    print(f'Average absolute error: {params_errors}')

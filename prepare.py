@@ -54,7 +54,7 @@ class MeshMeasurements:
     ARM_LENGTH = (LEFT_SHOULDER, LEFT_WRIST)
     FOREARM_LENGTH = (LEFT_INNER_ELBOW, LEFT_WRIST)
 
-    def __init__(self, verts, volume):
+    def __init__(self, verts, volume=None):
         self.verts = verts
         self.weight = volume
 
@@ -149,6 +149,15 @@ class MeshMeasurements:
             self.verts[self.FOREARM_LENGTH[1]]
         )
 
+    @property
+    def measurements(self):
+        return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])
+
+    @property
+    @staticmethod
+    def labels():
+        return [x for x in dir(MeshMeasurements) if '_' in x and x[0].islower()]
+
 
 class PoseFeatures():
 
@@ -211,51 +220,79 @@ class PoseFeatures():
 
 class SilhouetteFeatures():
 
-    def __init__(self, silhouettes, pose_features):
+    class __BoundingBox():
+
+        def __init__(self, up, down, left, right):
+            self.up = up
+            self.down = down
+            self.left = left
+            self.right = right
+
+    def __init__(self, silhouettes):
         self.silhouettes = silhouettes
-        self.pose_features = pose_features
+        self.bounding_boxes = self.__compute_bounding_boxes()
+
+    def __compute_bounding_boxes(self):
+        bounding_boxes = []
+        for sidx in range(self.silhouettes.shape[0]):
+            up, down = None, None
+            for row in range(self.silhouettes[sidx].shape[0]):
+                if self.silhouettes[sidx][row].sum() != 0:
+                    up = row
+                    break
+            for row in range(self.silhouettes[sidx].shape[0] - 1, 0, -1):
+                if self.silhouettes[sidx][row].sum() != 0:
+                    down = row
+                    break
+            for column in range(self.silhouettes[sidx].shape[1]):
+                if self.silhouettes[sidx, :, column].sum() != 0:
+                    left = column
+                    break
+            for column in range(self.silhouettes[sidx].shape[1] - 1, 0, -1):
+                if self.silhouettes[sidx, :, column].sum() != 0:
+                    right = column
+                    break
+            bounding_boxes.append(self.__BoundingBox(up, down, left, right))
+        return bounding_boxes
 
     @property
-    def waist_width(self):  # front silhouette
-        idx1 = self.pose_features.joints[self.pose_features.SPINE3][0]
-        idx2 = self.pose_features.joint[self.pose_features.LEFT_HIP][0]
-        ratio = 0.75
+    def waist_width(self):
+        front_silhouette = self.silhouettes[0]
+        bbox = self.bounding_boxes[0]
 
-        row_idx = idx1 + ratio * idx2
-        return self.silhouettes[0, row_idx].sum()
-
-    @property
-    def waist_depth(self):  # side silhouette
-        idx1 = self.pose_features.joints[self.pose_features.SPINE3][0]
-        idx2 = self.pose_features.joint[self.pose_features.LEFT_HIP][0]
-        ratio = 0.75
-
-        row_idx = idx1 + ratio * idx2
-        return self.silhouettes[1, row_idx].sum()
+        row_idx = int(bbox.up + 0.4 * (bbox.down - bbox.up))
+        return front_silhouette[row_idx].sum()
 
     @property
-    def thigh_width(self):  # front silhouette
-        idx1 = self.pose_features.joints[self.pose_features.LEFT_HIP][0]
-        idx2 = self.pose_features.joint[self.pose_features.LEFT_HEEL][0]
-        ratio = 0.15
+    def waist_depth(self):      # NOTE: Only this is currently using side silhouette!
+        side_silhouette = self.silhouettes[1]
+        bbox = self.bounding_boxes[1]
 
-        row_idx = idx1 + ratio * idx2
-        return self.silhouettes[0, row_idx].sum() / 2.
+        row_idx = int(bbox.up + 0.406 * (bbox.down - bbox.up))
+        return side_silhouette[row_idx].sum()
 
     @property
-    def biceps_width(self): # front silhouette
-        idx1 = self.pose_features.joints[self.pose_features.LEFT_WRIST][2]
-        idx2 = self.pose_features.joints[self.pose_features.LEFT_SHOULDER][2]
-        ratio = 0.8
+    def thigh_width(self):
+        front_silhouette = self.silhouettes[0]
+        bbox = self.bounding_boxes[0]
 
-        column_idx = idx1 + ratio * idx2
-        return self.silhouette[0, :, column_idx].sum()
+        row_idx = int(bbox.up + 0.564 * (bbox.down - bbox.up))
+        return front_silhouette[row_idx].sum() / 2.
+
+    @property
+    def biceps_width(self):
+        front_silhouette = self.silhouettes[0]
+        bbox = self.bounding_boxes[0]
+
+        column_idx = int(bbox.left + 0.332 * (bbox.right - bbox.left))
+        return front_silhouette[:, column_idx].sum()
 
 
 class Regressors():
 
     def __init__(self, pose_features, silhouette_features, weight):
         self.pose_features = pose_features
+        self.silhouette_features = silhouette_features
         self.weight = weight
 
     @property
@@ -293,14 +330,25 @@ class Regressors():
             [self.R5, np.array([arm_length], dtype=np.float32)]
         )
 
+    @property
+    def R4S4(self):
+        waist_width = self.silhouette_features.waist_width
+        waist_depth = self.silhouette_features.waist_depth
+        thigh_width = self.silhouette_features.thigh_width
+        biceps_width = self.silhouette_features.biceps_width
+        return np.concatenate([self.R4, 
+            np.array([waist_width, waist_depth, thigh_width, biceps_width], 
+            dtype=np.float32)]
+        )
 
-# NOTE: For now, use shape parameters as output.
+
 def prepare_in(sample_dict, regressor_type='R4'):
     pose_features = PoseFeatures(sample_dict['joints'])
-    silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'], pose_features)
-    measurements = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
-    regressors = Regressors(pose_features, silhouette_features, measurements.weight)
-    return getattr(regressors, regressor_type), measurements
+    silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'])
+    measurements_object = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
+    # TODO: Be able to select whether or not to use known weight.
+    regressors = Regressors(pose_features, silhouette_features, measurements_object.weight)
+    return getattr(regressors, regressor_type), measurements_object.measurements
 
 
 def prepare(args):
@@ -308,11 +356,13 @@ def prepare(args):
     samples_in = []
     samples_out = []
     measurements_all = []
+    genders = []
 
     for subj_dirname in os.listdir(data_dir):
         subj_dirpath = os.path.join(data_dir, subj_dirname)
         sample_dict = {
             'faces': None,
+            'gender': None,
             'joints': None,
             'pose': None,
             'shape': None,
@@ -326,13 +376,11 @@ def prepare(args):
             data = np.load(os.path.join(subj_dirpath, fname))
             sample_dict[key] = data
 
-        sample_in, measurements_object = prepare_in(sample_dict, args.regressor_type)
-
-        sample_measurements = [getattr(measurements_object, x) for x in dir(measurements_object) if '_' in x and x[0].islower()]
+        sample_in, sample_measurements = prepare_in(sample_dict, args.regressor_type)
 
         samples_in.append(sample_in)
         measurements_all.append(sample_measurements)
         samples_out.append(sample_dict['shape'])
+        genders.append(sample_dict['gender'])
 
-    # TODO: Move index selection of samples_out to generate.py
-    return np.array(samples_in), np.array(samples_out)[:, 0], np.array(measurements_all)
+    return np.array(samples_in), np.array(samples_out), np.array(measurements_all), np.array(genders)

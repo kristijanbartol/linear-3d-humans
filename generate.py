@@ -31,11 +31,17 @@ DATA_DIR = 'data/'
 IMG_DIR_TEMPLATE = os.path.join(DATA_DIR, '{}/imgs/')
 GT_DIR_TEMPLATE = os.path.join(DATA_DIR, '{}/gt/')
 
-GENDER_DICT = { 
+GENDER_TO_INT_DICT = { 
         'male': 0,
         'female': 1,
         'neutral': 2
-        }
+    }
+
+GENDER_TO_STR_DICT = { 
+        0: 'male',
+        1: 'female',
+        2: 'neutral'
+    }
 
 #os.environ['PYOPENGL_PLATFORM'] = 'egl' # Uncommnet this line while running remotely
 
@@ -75,7 +81,8 @@ def render_sample(body_mesh, dataset_name, gender, subject_idx, pose_idx):
     return silhouettes
 
 
-def save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_pose, volume):
+def save(save_dir, pid, gender, joints, vertices, faces, silhouettes, shape_coefs, body_pose, volume):
+    np.save(os.path.join(save_dir, f'gender.npy'), GENDER_TO_INT_DICT[gender])
     np.save(os.path.join(save_dir, f'joints_{pid:06d}.npy'), joints)
     np.save(os.path.join(save_dir, f'verts_{pid:06d}.npy'), vertices)
     np.save(os.path.join(save_dir, f'faces_{pid:06d}.npy'), faces)
@@ -83,6 +90,20 @@ def save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_
     np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs[0])
     np.save(os.path.join(save_dir, f'pose_{pid:06d}.npy'), body_pose)
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
+
+
+def set_shape(model, shape_coefs):
+    betas = torch.unsqueeze(torch.tensor(shape_coefs, dtype=torch.float32), dim=0)
+    return model(betas=betas, return_verts=True)
+
+
+# TODO: 63 is a magic number.
+def create_model(gender, init_body_pose=torch.zeros(size=(1, 63)), num_coefs=10):
+    return smplx.create(MODELS_DIR, model_type='smplx',
+                        gender=gender, use_face_contour=False,
+                        num_betas=num_coefs,
+                        body_pose=init_body_pose,
+                        ext='npz')
 
 
 def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, 
@@ -104,15 +125,7 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose,
     save_dir = os.path.join(GT_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-    save(save_dir, pid, joints, vertices, faces, silhouettes, shape_coefs, body_pose, body_mesh.volume)
-
-
-def create_model(gender, init_body_pose, num_coefs=10):
-    return smplx.create(MODELS_DIR, model_type='smplx',
-                        gender=gender, use_face_contour=False,
-                        num_betas=num_coefs,
-                        body_pose=init_body_pose,
-                        ext='npz')
+    save(save_dir, pid, gender, joints, vertices, faces, silhouettes, shape_coefs, body_pose, body_mesh.volume)
 
 
 def generate_subjects(dataset_name, gender, num_subjects, 
