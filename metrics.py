@@ -34,8 +34,8 @@ def evaluate(y_predict, y_target, gt_measures, genders):
         measurement_errors.append(measurement_error(pred_verts, gt_meas))
         surface2surface_dists.append(surface2surface_dist(pred_verts, gt_verts))
 
-    params_errors = np.mean(np.array(params_errors), axis=1)
-    measurement_errors = np.mean(np.array(measurement_errors), axis=1)
-    surface2surface_dists = np.array(measurement_errors)
+    params_errors = np.mean(np.array(params_errors), axis=0)
+    measurement_errors = np.mean(np.array(measurement_errors), axis=0)
+    surface2surface_dists = np.mean(np.array(surface2surface_dists), axis=0)
 
     return params_errors, measurement_errors, surface2surface_dists

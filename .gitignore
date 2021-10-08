@@ -115,6 +115,7 @@ pyopengl/
 models/
 human_body_prior/
 data/
+vis/
 vposer*/
 
 git_token

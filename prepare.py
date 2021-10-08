@@ -153,10 +153,16 @@ class MeshMeasurements:
     def measurements(self):
         return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])
 
-    @property
     @staticmethod
     def labels():
         return [x for x in dir(MeshMeasurements) if '_' in x and x[0].islower()]
+
+
+class SoftFeatures():
+
+    def __init__(self, gender, weight):
+        self.gender = gender
+        self.weight = weight
 
 
 class PoseFeatures():
@@ -288,67 +294,68 @@ class SilhouetteFeatures():
         return front_silhouette[:, column_idx].sum()
 
 
-class Regressors():
+class Regressor():
 
-    def __init__(self, pose_features, silhouette_features, weight):
+    P2 = ['overall_height']
+    P4 = P2 + ['arm_span_fingers', 'inseam_height']
+    P5 = P4 + ['hips_width']
+    P6 = P5 + ['arm_length']
+
+    Si4 = [
+        'waist_width',
+        'waist_depth',
+        'thigh_width',
+        'biceps_width'
+    ]
+
+    So1 = ['weight']
+
+    def __init__(self, 
+            pose_reg_type: str, 
+            silh_reg_type: str, 
+            soft_reg_type: str,
+            pose_features: PoseFeatures, 
+            silhouette_features: SilhouetteFeatures, 
+            soft_features: SoftFeatures):
+        self.pose_reg_type = pose_reg_type
+        self.silh_reg_type = silh_reg_type
+        self.soft_reg_type = soft_reg_type
         self.pose_features = pose_features
         self.silhouette_features = silhouette_features
-        self.weight = weight
+        self.soft_features = soft_features
 
     @property
-    def R2(self):
-        # [overall height, weight]
-        overall_height = self.pose_features.overall_height
-        weight = self.weight
-        return np.array([overall_height, weight], dtype=np.float32)
+    def _labels(self):
+        pose_labels = getattr(Regressor, self.pose_reg_type) if self.pose_reg_type is not None else []
+        silh_labels = getattr(Regressor, self.silh_reg_type) if self.silh_reg_type is not None else []
+        soft_labels = getattr(Regressor, self.silh_reg_type) if self.silh_reg_type is not None else []
+        return pose_labels, silh_labels, soft_labels
 
-    @property
-    def R4(self):
-        # [overall height, weight, arm span fingers, inseam height]
-        arm_span_fingers = self.pose_features.arm_span_fingers
-        inseam_height = self.pose_features.inseam_height
-        return np.concatenate(
-            [self.R2, np.array([arm_span_fingers, inseam_height], 
-            dtype=np.float32)]
-        )
+    def get_data(self):
+        pose_labels, silh_labels, soft_labels = self._labels
+        pose_data = [getattr(self.pose_features, x) for x in pose_labels]
+        silh_data = [getattr(self.silhouette_features, x) for x in silh_labels]
+        soft_data = [getattr(self.soft_features, x) for x in soft_labels]
+        return np.array(pose_data + silh_data + soft_data, dtype=np.float32)
 
-    @property
-    def R5(self):
-        # [overall height, weight, arm span fingers, inseam height,
-        # hips width]
-        hips_width = self.pose_features.hips_width
-        return np.concatenate(
-            [self.R4, np.array([hips_width], dtype=np.float32)]
-        )
-
-    @property
-    def R6(self):
-        # [overall height, weight, arm span fingers, inseam height,
-        # hips width, arm length]
-        arm_length = self.pose_features.arm_length
-        return np.concatenate(
-            [self.R5, np.array([arm_length], dtype=np.float32)]
-        )
-
-    @property
-    def R4S4(self):
-        waist_width = self.silhouette_features.waist_width
-        waist_depth = self.silhouette_features.waist_depth
-        thigh_width = self.silhouette_features.thigh_width
-        biceps_width = self.silhouette_features.biceps_width
-        return np.concatenate([self.R4, 
-            np.array([waist_width, waist_depth, thigh_width, biceps_width], 
-            dtype=np.float32)]
-        )
+    @staticmethod
+    def get_labels(args):
+        pose_labels = getattr(Regressor, args.pose_reg_type) if args.pose_reg_type is not None else []
+        silh_labels = getattr(Regressor, args.silh_reg_type) if args.silh_reg_type is not None else []
+        soft_labels = getattr(Regressor, args.soft_reg_type) if args.soft_reg_type is not None else []
+        return pose_labels + silh_labels + soft_labels
 
 
-def prepare_in(sample_dict, regressor_type='R4'):
+def prepare_in(sample_dict, args):
+    mesh_measurements = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
+
     pose_features = PoseFeatures(sample_dict['joints'])
     silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'])
-    measurements_object = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
-    # TODO: Be able to select whether or not to use known weight.
-    regressors = Regressors(pose_features, silhouette_features, measurements_object.weight)
-    return getattr(regressors, regressor_type), measurements_object.measurements
+    soft_features = SoftFeatures(sample_dict['gender'], mesh_measurements.weight)
+    
+    regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
+        pose_features, silhouette_features, soft_features)
+    return regressor.get_data(), mesh_measurements.measurements
 
 
 def prepare(args):
@@ -376,7 +383,7 @@ def prepare(args):
             data = np.load(os.path.join(subj_dirpath, fname))
             sample_dict[key] = data
 
-        sample_in, sample_measurements = prepare_in(sample_dict, args.regressor_type)
+        sample_in, sample_measurements = prepare_in(sample_dict, args)
 
         samples_in.append(sample_in)
         measurements_all.append(sample_measurements)

@@ -1,44 +1,11 @@
 import argparse
-import numpy as np
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.neural_network import MLPRegressor
-from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 
 from prepare import prepare
 from metrics import evaluate
-
-
-class Models():
-
-    RANDOM_STATE = 37
-
-    @staticmethod
-    def linear():
-        return LinearRegression()
-
-    @staticmethod
-    def poly():
-        return make_pipeline(PolynomialFeatures(degree=5), LinearRegression())
-
-    @staticmethod
-    def tree():
-        return DecisionTreeRegressor(random_state=Models.RANDOM_STATE)
-
-    @staticmethod
-    def mlp():
-        return MLPRegressor(hidden_layer_sizes=(2000), random_state=Models.RANDOM_STATE, max_iter=500)
-
-    @staticmethod
-    def feature_importances(model):
-        if type(model) == MLPRegressor:
-            return None
-        elif type(model) == DecisionTreeRegressor:
-            return model.feature_importances_
-        else:
-            return model.coef_
+from models import Models
+from logs import log
+from visualize import visualize
 
 
 def init_argparse():
@@ -50,8 +17,16 @@ def init_argparse():
         '--dataset_name', type=str, 
         help='dataset name')
     parser.add_argument(
-        '--regressor_type', type=str,
-        help='regressor type defined by the set of input features'
+        '--pose_reg_type', type=str,
+        help='regressor type defined by the set of pose input features'
+    )
+    parser.add_argument(
+        '--silh_reg_type', type=str,
+        help='regressor type defined by the set of pose input features'
+    )
+    parser.add_argument(
+        '--soft_reg_type', type=str,
+        help='regressor type defined by the set of soft input features (weight etc.)'
     )
     parser.add_argument(
         '--model', type=str, choices=['linear', 'poly', 'tree', 'mlp'],
@@ -73,11 +48,13 @@ if __name__ == '__main__':
 
     print(f'Creating {args.model} model...')
     model = getattr(Models, args.model)()
-    print(f'Fitting model using {args.regressor_type} regressor...')
+    print(f'Fitting model using {args.pose_reg_type}+{args.silh_reg_type}+{args.soft_reg_type} regressor...')
     reg = model.fit(X_train, y_train)
     print('Predicting...')
     y_predict = reg.predict(X_test)
     print('Evaluating...')
-    params_errors, measurement_errors, s2s_errors = evaluate(y_predict, y_test, gt_meas_test, gender_test)
+    params_errors, measurement_errors, s2s_dists = evaluate(y_predict, y_test, gt_meas_test, gender_test)
 
-    print(f'Average absolute error: {params_errors}')
+    log(model, args, params_errors, measurement_errors, s2s_dists)
+    
+    visualize(model, args, params_errors, measurement_errors, s2s_dists)
