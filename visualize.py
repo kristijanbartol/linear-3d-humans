@@ -31,7 +31,7 @@ def visualize_measure_errors(measure_errors):
 
     measure_dict = dict(zip(
         MeshMeasurements.labels(), 
-        measure_errors)
+        [[x] for x in measure_errors])
     )
     pd_params = pd.DataFrame(measure_dict)
 
@@ -47,7 +47,7 @@ def visualize_feature_importances(model, args):
 
     feature_importance_dict = dict(zip(
         Regressor.get_labels(args), 
-        Models.feature_importances(model))
+        [[x] for x in Models.feature_importances(model)])
     )
     pd_params = pd.DataFrame(feature_importance_dict)
 
@@ -65,8 +65,8 @@ def visualize_s2s_dists(s2s_dists):
     fig = go.Figure(data=[
     go.Mesh3d(
         x=template_verts[:, 0],
-        y=template_verts[:, 2],
-        z=template_verts[:, 1],
+        y=template_verts[:, 1],
+        z=template_verts[:, 2],
         colorbar_title='z',
         colorscale=[[0, 'gold'],
                     [0.5, 'mediumturquoise'],

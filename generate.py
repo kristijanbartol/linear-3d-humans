@@ -99,7 +99,7 @@ def set_shape(model, shape_coefs):
 
 # TODO: 63 is a magic number.
 def create_model(gender, init_body_pose=torch.zeros(size=(1, 63)), num_coefs=10):
-    return smplx.create(MODELS_DIR, model_type='smplx',
+    return smplx.create(MODELS_DIR, model_type='smpl',
                         gender=gender, use_face_contour=False,
                         num_betas=num_coefs,
                         body_pose=init_body_pose,
