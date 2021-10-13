@@ -1,7 +1,7 @@
 import argparse
 from sklearn.model_selection import train_test_split
 
-from prepare import prepare
+from load import load
 from metrics import evaluate
 from models import Models
 from logs import log
@@ -12,10 +12,16 @@ def init_argparse():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--data_root', type=str, 
-        help='root data folder')
+        help='root data folder'
+    )
     parser.add_argument(
         '--dataset_name', type=str, 
-        help='dataset name')
+        help='dataset name'
+    )
+    parser.add_argument(
+        '--data_type', type=str, choices=['gt', 'est'],
+        help='whether to use ground truth regressor'
+    )
     parser.add_argument(
         '--pose_reg_type', type=str,
         help='regressor type defined by the set of pose input features'
