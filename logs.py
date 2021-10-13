@@ -1,4 +1,4 @@
-from prepare import MeshMeasurements, Regressor
+from load import MeshMeasurements, Regressor
 from models import Models
 
 

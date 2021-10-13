@@ -391,13 +391,13 @@ class Regressor():
         return pose_labels + silh_labels + soft_labels
 
 
-def prepare_in(sample_dict, args):
-    mesh_measurements = MeshMeasurements(sample_dict['verts'], sample_dict['volume'])
+def prepare_in(verts, volume, kpts, silhs, gender, args):
+    mesh_measurements = MeshMeasurements(verts, volume)
 
     index_set = MeshJointIndexSet if args.data_type == 'gt' else OpenPoseJointIndexSet
-    pose_features = PoseFeatures(sample_dict[f'{args.data_type}_kpts'], index_set)
-    silhouette_features = SilhouetteFeatures(sample_dict['silhouettes'])
-    soft_features = SoftFeatures(sample_dict['gender'], mesh_measurements.weight)
+    pose_features = PoseFeatures(kpts, index_set)
+    silhouette_features = SilhouetteFeatures(silhs)
+    soft_features = SoftFeatures(gender, mesh_measurements.weight)
     
     regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
         pose_features, silhouette_features, soft_features)
@@ -405,37 +405,28 @@ def prepare_in(sample_dict, args):
 
 
 def load(args):
-    data_basedir = os.path.join(args.data_root, args.dataset_name)
+    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared')
     samples_in = []
     samples_out = []
     measurements_all = []
     genders = []
 
-    gt_dir = os.path.join(data_basedir, 'gt')
-    for subj_dirname in os.listdir(gt_dir):
-        subj_dirpath = os.path.join(gt_dir, subj_dirname)
-        sample_dict = {
-            'faces': None,
-            'gender': None,
-            'est_kpts': None,
-            'gt_kpts': None,
-            'pose': None,
-            'shape': None,
-            'silhouettes': None,
-            'verts': None,
-            'volume': None  # optional
-        }
+    data_dict = {}
+    for fname in os.listdir(data_dir):
+        data_dict[fname] = np.load(os.path.join(data_dir, fname))
 
-        for fname in os.listdir(subj_dirpath):
-            key = fname.split('.')[0].split('_')[0]
-            data = np.load(os.path.join(subj_dirpath, fname))
-            sample_dict[key] = data
-
-        sample_in, sample_measurements = prepare_in(sample_dict, args)
+    for sample_idx in range(data_dict['genders'].shape[0]):
+        verts = data_dict['vertss'][sample_idx]
+        volume = data_dict['volume'][sample_idx]
+        kpts = data_dict[f'{args.data_type}_kpts'][sample_idx]
+        silhs = [data_dict['front_silhss'][sample_idx], data_dict['side_silhss'][sample_idx]]
+        gender = data_dict['genders'][sample_idx]
+        
+        sample_in, sample_measurements = prepare_in(verts, volume, kpts, silhs, gender, args)
 
         samples_in.append(sample_in)
         measurements_all.append(sample_measurements)
-        samples_out.append(sample_dict['shape'])
-        genders.append(sample_dict['gender'])
+        samples_out.append(data_dict['shapes'][sample_idx])
+        genders.append(data_dict['genders'][sample_idx])
 
     return np.array(samples_in), np.array(samples_out), np.array(measurements_all), np.array(genders)

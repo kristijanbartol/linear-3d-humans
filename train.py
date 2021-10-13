@@ -47,7 +47,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(f'Preparing {args.dataset_name} dataset...')
-    X, y, measurements, genders = prepare(args)
+    X, y, measurements, genders = load(args)
     print('Train/test splitting...')
     X_train, X_test, y_train, y_test, _, gt_meas_test, _, gender_test = train_test_split(
         X, y, measurements, genders, test_size=0.33, random_state=42)

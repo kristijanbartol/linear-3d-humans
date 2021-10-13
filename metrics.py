@@ -1,7 +1,7 @@
 import numpy as np
 
 from generate import create_model, set_shape, GENDER_TO_STR_DICT
-from prepare import MeshMeasurements
+from load import MeshMeasurements
 
 
 def params_error(pred_params, gt_params):

@@ -11,11 +11,11 @@
             "program": "${file}",
             "console": "integratedTerminal",
             // generate.py
-            "args": [
-                "--name", "sensors-male",
-                "--male", "100",
+            //"args": [
+            //    "--name", "sensors-male",
+            //    "--male", "100",
             //    "--female", "1000",
-            ],
+            //],
 
             // demo.py
             //"args": [
@@ -25,15 +25,15 @@
             //]
 
             // train.py
-            //"args": [
-            //    "--data_root", "data/",
-            //    "--dataset_name", "sensors-male",
-            //    "--data_type", "est",
-            //    "--pose_reg_type", "P4",
-            //    "--silh_reg_type", "Si4",
-            //    "--soft_reg_type", "So1",
-            //    "--model", "tree"
-            //]
+            "args": [
+                "--data_root", "data/",
+                "--dataset_name", "caesar",
+                "--data_type", "est",
+                "--pose_reg_type", "P4",
+                "--silh_reg_type", "Si4",
+                "--soft_reg_type", "So1",
+                "--model", "tree"
+            ]
         }
     ]
 }

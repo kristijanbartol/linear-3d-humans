@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import seaborn as sns
 import pandas as pd
 
-from prepare import MeshMeasurements, Regressor
+from load import MeshMeasurements, Regressor
 from models import Models
 from generate import create_model, set_shape
 
