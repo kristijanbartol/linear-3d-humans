@@ -70,7 +70,7 @@ def save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, bo
     np.save(os.path.join(save_dir, f'faces.npy'), faces)
     np.save(os.path.join(save_dir, f'front_silhouette.npy'), silhouettes[0])
     np.save(os.path.join(save_dir, f'side_silhouette.npy'), silhouettes[1])
-    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs[0])
+    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
     np.save(os.path.join(save_dir, f'pose.npy'), body_pose)
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
 
@@ -81,7 +81,7 @@ def set_shape(model, shape_coefs):
     return model(betas=shape_coefs, return_verts=True)
 
 
-def create_model(gender, body_pose, num_coefs=10):
+def create_model(gender, body_pose=torch.zeros((1, SMPL_NUM_KPTS * 3)), num_coefs=10):
     return smplx.create(MODELS_DIR, model_type='smpl',
                         gender=gender, use_face_contour=False,
                         num_betas=num_coefs,

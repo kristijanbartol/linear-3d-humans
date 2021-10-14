@@ -30,7 +30,7 @@
                 "--dataset_name", "caesar",
                 "--data_type", "est",
                 "--pose_reg_type", "P4",
-                "--silh_reg_type", "Si4",
+                //"--silh_reg_type", "Si4",
                 "--soft_reg_type", "So1",
                 "--model", "tree"
             ]

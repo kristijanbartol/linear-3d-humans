@@ -12,6 +12,11 @@ from generate import SMPL_NUM_KPTS, create_model, set_shape, GENDER_TO_INT_DICT
 from utils import img_to_silhouette
 
 
+def process_openpose(pose_json):
+    # TODO: Use confidences (could have ones for GT).
+    return np.array(pose_json['people'][0]['pose_keypoints_2d']).reshape([-1, 3])[:, :2]
+
+
 def prepare_caesar():
     data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/NOMO'
     est_kptss_dir = os.path.join(data_dir, 'keypoints', '{}', 'front')
@@ -38,11 +43,12 @@ def prepare_caesar():
         for sample_idx in range(num_samples):
             print(gender, sample_idx)
             try:
-                data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
                 data_dict['poses'].append(loadmat(
                     os.path.join(params_dir.format(gender), f'{sample_idx:04d}.mat'))['pose'])
                 data_dict['shapes'].append(loadmat(
                     os.path.join(params_dir.format(gender), f'{sample_idx:04d}.mat'))['shape'])
+                
+                data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
 
                 smpl_model = create_model(gender, np.zeros([1, SMPL_NUM_KPTS * 3]))
                 smpl_output = set_shape(smpl_model, data_dict['shapes'][-1][0])
@@ -52,7 +58,7 @@ def prepare_caesar():
                     vertex_colors=np.tile(colors['grey'], (6890, 1)))
 
                 with open(os.path.join(est_kptss_dir.format(gender), f'{sample_idx:04d}_keypoints.json')) as json_f:
-                    data_dict['est_kptss'].append(json.load(json_f)['people'][0]['pose_keypoints_2d'])
+                    data_dict['est_kptss'].append(process_openpose(json.load(json_f)))
                 data_dict['gt_kptss'].append(smpl_output.joints.detach().cpu().numpy().squeeze())
                 data_dict['front_silhss'].append(img_to_silhouette(imread(
                     os.path.join(front_silhss_template.format(gender), f'{sample_idx:04d}.png'))))

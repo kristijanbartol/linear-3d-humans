@@ -1,16 +1,11 @@
 import os
-import json
-import trimesh
 import numpy as np
 from pyrender.mesh import Mesh
-import scipy.io
-import scipy.misc
-import torch
-
-from generate import GENDER_TO_INT_DICT, create_model, img_to_silhouette, set_shape
+from sklearn.preprocessing import normalize
 
 
 def get_dist(*vs):
+    # NOTE: Works both for 3D and 2D joint coordinates.
     total_dist = 0
     for vidx in range(len(vs) - 1):
         total_dist += np.linalg.norm(vs[vidx] - vs[vidx + 1])
@@ -18,6 +13,7 @@ def get_dist(*vs):
 
 
 def get_height(v1, v2):
+    # NOTE: Works both for 3D and 2D joint coordinates.
     return np.abs((v1 - v2))[1]
 
 
@@ -225,6 +221,7 @@ class OpenPoseJointIndexSet():
 
     # Joint-based measurement indexes.
     OVERALL_HEIGHT = [HEAD, LHEEL]
+    ARM_SPAN_FINGERS = [LWRIST, LELBOW, LSHOULDER, RSHOULDER, RELBOW, RWRIST]
     INSEAM_HEIGHT = [PELVIS, LHEEL]
     HIPS_WIDTH = [LHIP, RHIP]
     ARM_LENGTH = [LWRIST, LELBOW, LSHOULDER]
@@ -245,10 +242,7 @@ class PoseFeatures():
 
     @property
     def arm_span_fingers(self):
-        return get_dist(
-            self.joints[self.index_set.ARM_SPAN_FINGERS[0]], 
-            self.joints[self.index_set.ARM_SPAN_FINGERS[1]]
-        )
+        return get_dist(*[self.joints[x] for x in self.index_set.ARM_SPAN_FINGERS])
 
     @property
     def inseam_height(self):
@@ -286,7 +280,7 @@ class SilhouetteFeatures():
     def __compute_bounding_boxes(self):
         bounding_boxes = []
         for sidx in range(self.silhouettes.shape[0]):
-            up, down = None, None
+            up, down, left, right = None, None, None, None
             for row in range(self.silhouettes[sidx].shape[0]):
                 if self.silhouettes[sidx][row].sum() != 0:
                     up = row
@@ -373,7 +367,7 @@ class Regressor():
     def _labels(self):
         pose_labels = getattr(Regressor, self.pose_reg_type) if self.pose_reg_type is not None else []
         silh_labels = getattr(Regressor, self.silh_reg_type) if self.silh_reg_type is not None else []
-        soft_labels = getattr(Regressor, self.silh_reg_type) if self.silh_reg_type is not None else []
+        soft_labels = getattr(Regressor, self.soft_reg_type) if self.soft_reg_type is not None else []
         return pose_labels, silh_labels, soft_labels
 
     def get_data(self):
@@ -381,7 +375,10 @@ class Regressor():
         pose_data = [getattr(self.pose_features, x) for x in pose_labels]
         silh_data = [getattr(self.silhouette_features, x) for x in silh_labels]
         soft_data = [getattr(self.soft_features, x) for x in soft_labels]
-        return np.array(pose_data + silh_data + soft_data, dtype=np.float32)
+
+        data_vector = np.array(pose_data + silh_data + soft_data, dtype=np.float32)
+        data_vector = normalize(data_vector[:, np.newaxis], axis=0).ravel()
+        return data_vector
 
     @staticmethod
     def get_labels(args):
@@ -406,27 +403,39 @@ def prepare_in(verts, volume, kpts, silhs, gender, args):
 
 def load(args):
     data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared')
-    samples_in = []
-    samples_out = []
-    measurements_all = []
-    genders = []
+
+    regressor_name = f'{args.pose_reg_type}_{args.silh_reg_type}_{args.soft_reg_type}.npy'
+    regressor_path = os.path.join(data_dir, regressor_name)
 
     data_dict = {}
     for fname in os.listdir(data_dir):
-        data_dict[fname] = np.load(os.path.join(data_dir, fname))
+        data_dict[fname.split('.')[0]] = np.load(os.path.join(data_dir, fname))
 
-    for sample_idx in range(data_dict['genders'].shape[0]):
-        verts = data_dict['vertss'][sample_idx]
-        volume = data_dict['volume'][sample_idx]
-        kpts = data_dict[f'{args.data_type}_kpts'][sample_idx]
-        silhs = [data_dict['front_silhss'][sample_idx], data_dict['side_silhss'][sample_idx]]
-        gender = data_dict['genders'][sample_idx]
-        
-        sample_in, sample_measurements = prepare_in(verts, volume, kpts, silhs, gender, args)
+    if not os.path.exists(regressor_path):
+        samples_in = []
+        measurements_all = []
 
-        samples_in.append(sample_in)
-        measurements_all.append(sample_measurements)
-        samples_out.append(data_dict['shapes'][sample_idx])
-        genders.append(data_dict['genders'][sample_idx])
+        for sample_idx in range(data_dict['genders'].shape[0]):
+            print(sample_idx)
+            verts = data_dict['vertss'][sample_idx]
+            volume = data_dict['volumes'][sample_idx]
+            kpts = data_dict[f'{args.data_type}_kptss'][sample_idx]
+            silhs = np.array([data_dict['front_silhss'][sample_idx], data_dict['side_silhss'][sample_idx]])
+            gender = data_dict['genders'][sample_idx]
 
-    return np.array(samples_in), np.array(samples_out), np.array(measurements_all), np.array(genders)
+            sample_in, sample_measurements = prepare_in(verts, volume, kpts, silhs, gender, args)
+
+            samples_in.append(sample_in)
+            measurements_all.append(sample_measurements)
+
+        samples_in = np.array(samples_in)
+        measurements_all = np.array(measurements_all)
+
+        np.save(regressor_path, samples_in)
+        np.save(os.path.join(data_dir, 'measurements.npy'), measurements_all)
+    else:
+        samples_in = np.load(regressor_path)
+        measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
+
+    # NOTE: Measurements are here in case I want to experiment with regressing to them instead of shape coefs.
+    return samples_in, data_dict['shapes'][:, 0], np.array(measurements_all), data_dict['genders']
