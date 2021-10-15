@@ -203,7 +203,7 @@ class OpenPoseJointIndexSet():
     PELVIS = 8  # MIDHIP
     RHIP = 9
     RKNEE = 10
-    RANGLE = 11
+    RANKLE = 11
     LHIP = 12
     LKNEE = 13
     LANKLE = 14
@@ -229,16 +229,20 @@ class OpenPoseJointIndexSet():
 
 class PoseFeatures():
 
-    def __init__(self, joints, index_set):
+    def __init__(self, joints, index_set, overall_height=None):
         self.joints = joints
         self.index_set = index_set
+        self.overall_height_ = overall_height
 
     @property
     def overall_height(self):
-        return get_height(
-            self.joints[self.index_set.OVERALL_HEIGHT[0]], 
-            self.joints[self.index_set.OVERALL_HEIGHT[1]]
-        )
+        if self.overall_height_ is not None:
+            return self.overall_height_
+        else:
+            return get_height(
+                self.joints[self.index_set.OVERALL_HEIGHT[0]], 
+                self.joints[self.index_set.OVERALL_HEIGHT[1]]
+            )
 
     @property
     def arm_span_fingers(self):
@@ -376,9 +380,7 @@ class Regressor():
         silh_data = [getattr(self.silhouette_features, x) for x in silh_labels]
         soft_data = [getattr(self.soft_features, x) for x in soft_labels]
 
-        data_vector = np.array(pose_data + silh_data + soft_data, dtype=np.float32)
-        data_vector = normalize(data_vector[:, np.newaxis], axis=0).ravel()
-        return data_vector
+        return np.array(pose_data + silh_data + soft_data, dtype=np.float32)
 
     @staticmethod
     def get_labels(args):
@@ -392,7 +394,8 @@ def prepare_in(verts, volume, kpts, silhs, gender, args):
     mesh_measurements = MeshMeasurements(verts, volume)
 
     index_set = MeshJointIndexSet if args.data_type == 'gt' else OpenPoseJointIndexSet
-    pose_features = PoseFeatures(kpts, index_set)
+    pose_features = PoseFeatures(kpts, index_set, mesh_measurements.overall_height)
+    #pose_features = PoseFeatures(kpts, index_set)
     silhouette_features = SilhouetteFeatures(silhs)
     soft_features = SoftFeatures(gender, mesh_measurements.weight)
     
@@ -416,11 +419,11 @@ def load(args):
         measurements_all = []
 
         for sample_idx in range(data_dict['genders'].shape[0]):
-            print(sample_idx)
             verts = data_dict['vertss'][sample_idx]
             volume = data_dict['volumes'][sample_idx]
             kpts = data_dict[f'{args.data_type}_kptss'][sample_idx]
-            silhs = np.array([data_dict['front_silhss'][sample_idx], data_dict['side_silhss'][sample_idx]])
+            silhs = np.array([data_dict['front_silhs'][sample_idx], data_dict['side_silhs'][sample_idx]])
+            #silhs = np.array([data_dict['front_silhs'], data_dict['side_silhs']])
             gender = data_dict['genders'][sample_idx]
 
             sample_in, sample_measurements = prepare_in(verts, volume, kpts, silhs, gender, args)
@@ -437,5 +440,7 @@ def load(args):
         samples_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
+    samples_in = normalize(samples_in, axis=0)
+
     # NOTE: Measurements are here in case I want to experiment with regressing to them instead of shape coefs.
-    return samples_in, data_dict['shapes'][:, 0], np.array(measurements_all), data_dict['genders']
+    return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']

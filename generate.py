@@ -34,7 +34,7 @@ GENDER_TO_STR_DICT = {
     }
 
 SMPL_NUM_KPTS = 23
-SMPLX_NUM_KPTS = 20
+SMPLX_NUM_KPTS = 21
 
 
 def render_sample(body_mesh, dataset_name, gender, subject_idx):
@@ -81,8 +81,12 @@ def set_shape(model, shape_coefs):
     return model(betas=shape_coefs, return_verts=True)
 
 
-def create_model(gender, body_pose=torch.zeros((1, SMPL_NUM_KPTS * 3)), num_coefs=10):
-    return smplx.create(MODELS_DIR, model_type='smpl',
+def create_model(gender, num_coefs=10, model_type='smpl'):
+    if model_type == 'smpl':
+        body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
+    else:
+        body_pose = torch.zeros((1, SMPLX_NUM_KPTS * 3))
+    return smplx.create(MODELS_DIR, model_type=model_type,
                         gender=gender, use_face_contour=False,
                         num_betas=num_coefs,
                         body_pose=body_pose,
@@ -137,7 +141,8 @@ def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_
         np_shape_coefs[perm_idx + start_idx] = perm
     shape_coefs = torch.from_numpy(np_shape_coefs)
     zero_pose = np.zeros([1, SMPL_NUM_KPTS * 3])
-    model = create_model(gender, zero_pose)
+    # NOTE: Generating SMPL-X models.
+    model = create_model(gender, model_type='smplx')
 
     # NOTE: If not regenerate, last shape will still be regenerated, which is OK.
     for subject_idx in range(start_idx, start_idx + num_subjects):

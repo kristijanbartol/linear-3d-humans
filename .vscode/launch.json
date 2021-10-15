@@ -13,7 +13,7 @@
             // generate.py
             //"args": [
             //    "--name", "sensors-male",
-            //    "--male", "100",
+            //    "--male", "1000",
             //    "--female", "1000",
             //],
 
@@ -29,9 +29,10 @@
                 "--data_root", "data/",
                 "--dataset_name", "caesar",
                 "--data_type", "est",
-                "--pose_reg_type", "P4",
+                "--pose_reg_type", "P5",
                 //"--silh_reg_type", "Si4",
                 "--soft_reg_type", "So1",
+                "--target", "measurements",
                 "--model", "tree"
             ]
         }

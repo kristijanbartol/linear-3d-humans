@@ -35,6 +35,10 @@ def init_argparse():
         help='regressor type defined by the set of soft input features (weight etc.)'
     )
     parser.add_argument(
+        '--target', type=str, choices=['shape', 'measurements'],
+        help='target variable'
+    )
+    parser.add_argument(
         '--model', type=str, choices=['linear', 'poly', 'tree', 'mlp'],
         help='machine learning model type'
     )
@@ -49,18 +53,20 @@ if __name__ == '__main__':
     print(f'Preparing {args.dataset_name} dataset...')
     X, y, measurements, genders = load(args)
     print('Train/test splitting...')
-    X_train, X_test, y_train, y_test, _, gt_meas_test, _, gender_test = train_test_split(
+    X_train, X_test, y_train, y_test, meas_train, meas_test, _, gender_test = train_test_split(
         X, y, measurements, genders, test_size=0.33, random_state=42)
 
     print(f'Creating {args.model} model...')
     model = getattr(Models, args.model)()
     print(f'Fitting model using {args.pose_reg_type}+{args.silh_reg_type}+{args.soft_reg_type} regressor...')
-    reg = model.fit(X_train, y_train)
+    print(f'Target variable: {args.target}...')
+    reg = model.fit(X_train, y_train if args.target == 'shape' else meas_train)
     print('Predicting...')
     y_predict = reg.predict(X_test)
     print('Evaluating...')
-    params_errors, measurement_errors, s2s_dists = evaluate(y_predict, y_test, gt_meas_test, gender_test)
-
+    y_gt = y_test if args.target == 'shape' else meas_test
+    params_errors, measurement_errors, s2s_dists = evaluate(y_predict, y_gt, gender_test)
+    print('Logging to stdout...')
     log(model, args, params_errors, measurement_errors, s2s_dists)
-    
+    print('Visualizing...')
     visualize(model, args, params_errors, measurement_errors, s2s_dists)

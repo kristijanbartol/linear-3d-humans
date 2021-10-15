@@ -12,7 +12,7 @@ def log_errors(params, measures, s2s):
     print('\nMEASURES\n=========')
     measure_labels = MeshMeasurements.labels()
     for meas_idx in range(measures.shape[0]):
-        print(f'{measure_labels[meas_idx]}: {measures[meas_idx]:.6f}')
+        print(f'{measure_labels[meas_idx]}: {(measures[meas_idx] * 100):.6f}cm')
 
 
 def log_feature_importances(model, args):
@@ -20,7 +20,7 @@ def log_feature_importances(model, args):
     feature_labels = Regressor.get_labels(args)
     importances = Models.feature_importances(model)
     for feat_idx in range(importances.shape[0]):
-        print(f'{feature_labels[feat_idx]}: {importances[feat_idx]:.6f}')
+        print(f'{feature_labels[feat_idx]}: {importances[feat_idx]}')
 
 
 def log(model, args, params_errors, measurement_errors, s2s_dists):

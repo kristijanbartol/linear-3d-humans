@@ -33,8 +33,8 @@ def prepare_caesar():
         'gt_kptss': [],
         'poses': [],
         'shapes': [],
-        'front_silhss': [],
-        'side_silhss': [],
+        'front_silhs': [],
+        'side_silhs': [],
         'vertss': [],
         'volumes': []
     }
@@ -50,7 +50,7 @@ def prepare_caesar():
                 
                 data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
 
-                smpl_model = create_model(gender, np.zeros([1, SMPL_NUM_KPTS * 3]))
+                smpl_model = create_model(gender)
                 smpl_output = set_shape(smpl_model, data_dict['shapes'][-1][0])
                 verts = smpl_output.vertices.detach().cpu().numpy().squeeze()
                 faces = smpl_model.faces.squeeze()
@@ -60,9 +60,9 @@ def prepare_caesar():
                 with open(os.path.join(est_kptss_dir.format(gender), f'{sample_idx:04d}_keypoints.json')) as json_f:
                     data_dict['est_kptss'].append(process_openpose(json.load(json_f)))
                 data_dict['gt_kptss'].append(smpl_output.joints.detach().cpu().numpy().squeeze())
-                data_dict['front_silhss'].append(img_to_silhouette(imread(
+                data_dict['front_silhs'].append(img_to_silhouette(imread(
                     os.path.join(front_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
-                data_dict['side_silhss'].append(img_to_silhouette(imread(
+                data_dict['side_silhs'].append(img_to_silhouette(imread(
                     os.path.join(side_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
                 data_dict['vertss'].append(verts)
                 data_dict['volumes'].append(body_mesh.volume)
@@ -100,24 +100,28 @@ def prepare_gt(dataset_name):
         'gt_kptss': [],
         'poses': [],
         'shapes': [],
-        'front_silhs': [],
-        'side_silhs': [],
+        'front_silhs': [],     # too big to load into RAM
+        'side_silhs': [],      # too big to load into RAM
         'vertss': [],
         'volumes': []
     }
 
-    for subj_dirname in os.listdir(data_dir):
-        print(subj_dirname)
-        subj_dirpath = os.path.join(data_dir, subj_dirname)
-
-        for key in data_dict:
-            data = np.load(os.path.join(subj_dirpath, f'{ATTR_MAP[key]}.npy'))
-            data_dict[key].append(data)
-        # TODO: Use estimated keypoints (OpenPose).
-
     for key in data_dict:
-        data_dict[key] = np.array(data_dict[key], dtype=np.float32)
-        np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+        if 'silhs' in key:
+            np.save(os.path.join(save_dir, f'{key}.npy'), np.zeros((1, 1)))
+        else:
+            for subj_dirname in os.listdir(data_dir):
+                print(subj_dirname)
+                subj_dirpath = os.path.join(data_dir, subj_dirname)
+
+                data = np.load(os.path.join(subj_dirpath, f'{ATTR_MAP[key]}.npy'))
+                data_dict[key].append(data)
+                # TODO: Use estimated keypoints (OpenPose).
+
+            data_dict[key] = np.array(data_dict[key], dtype=np.float32)
+            np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+
+            data_dict[key] = []
 
 
 if __name__ == '__main__':
