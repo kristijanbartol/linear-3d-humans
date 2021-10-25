@@ -12,8 +12,8 @@
             "console": "integratedTerminal",
             // generate.py
             //"args": [
-            //    "--name", "sensors-male",
-            //    "--male", "1000",
+            //    "--name", "star",
+            //    "--male", "5000",
             //    "--female", "1000",
             //],
 
@@ -29,11 +29,11 @@
                 "--data_root", "data/",
                 "--dataset_name", "caesar",
                 "--data_type", "est",
-                "--pose_reg_type", "P5",
+                "--pose_reg_type", "P2",
                 //"--silh_reg_type", "Si4",
                 "--soft_reg_type", "So1",
                 "--target", "measurements",
-                "--model", "tree"
+                "--model", "linear"
             ]
         }
     ]

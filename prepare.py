@@ -24,8 +24,7 @@ def prepare_caesar():
     front_silhss_template = os.path.join(data_dir, 'rendered_rgb', '{}', 'front', 'silh')
     side_silhss_template = os.path.join(data_dir, 'rendered_rgb', '{}', 'side', 'silh')
 
-    save_dir = os.path.join('data', 'caesar', 'prepared')
-    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    save_dir_template = os.path.join('data', 'caesar', 'prepared', '{}')
 
     data_dict = {
         'genders': [],
@@ -36,10 +35,12 @@ def prepare_caesar():
         'front_silhs': [],
         'side_silhs': [],
         'vertss': [],
+        'facess': [],
         'volumes': []
     }
 
     for gender, num_samples in zip(['male', 'female'], [1474, 2675]):
+    #for gender, num_samples in zip(['male'], [1474]):
         for sample_idx in range(num_samples):
             print(gender, sample_idx)
             try:
@@ -65,13 +66,17 @@ def prepare_caesar():
                 data_dict['side_silhs'].append(img_to_silhouette(imread(
                     os.path.join(side_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
                 data_dict['vertss'].append(verts)
+                data_dict['facess'].append(faces)
                 data_dict['volumes'].append(body_mesh.volume)
             except FileNotFoundError as e:
                 print(f'Error with {gender} {sample_idx} ({e.filename})')
 
-    for key in data_dict:
-        data_dict[key] = np.array(data_dict[key], dtype=np.float32)
-        np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+        save_dir = save_dir_template.format(gender)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        for key in data_dict:
+            data_dict[key] = np.array(data_dict[key], dtype=np.float32)
+            np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+            data_dict[key] = []
 
 
 def prepare_gt(dataset_name):
@@ -124,6 +129,47 @@ def prepare_gt(dataset_name):
             data_dict[key] = []
 
 
+def prepare_star():
+    ATTR_MAP = {
+        'genders': 'gender',
+        'poses': 'pose',
+        'shapes': 'shape',
+        'vertss': 'verts',
+        'volumes': 'volume'
+    }
+
+    data_dir = os.path.join('data', 'star', 'generated')
+    kpts_dir = os.path.join('data', 'star', 'keypoints')  # for est_kptss
+    # TODO: Create directories for both genders.
+    save_dir = os.path.join('data', 'star', 'prepared', 'male')
+
+    Path(kpts_dir).mkdir(parents=True, exist_ok=True)
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+
+    data_dict = {
+        'genders': [],
+        'poses': [],
+        'shapes': [],
+        'vertss': [],
+        'volumes': []
+    }
+
+    for key in data_dict:
+        for subj_dirname in os.listdir(data_dir):
+            print(subj_dirname)
+            subj_dirpath = os.path.join(data_dir, subj_dirname)
+
+            data = np.load(os.path.join(subj_dirpath, f'{ATTR_MAP[key]}.npy'))
+            data_dict[key].append(data)
+
+        data_dict[key] = np.array(data_dict[key], dtype=np.float32)
+
+        np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+
+        data_dict[key] = []
+
+
 if __name__ == '__main__':
     prepare_caesar()
-    #prepare_gt('sensors-male')
+    #prepare_gt('star')
+    #prepare_star()

@@ -75,40 +75,66 @@ def save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, bo
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
 
 
+def save_star(save_dir, gender, vertices, shape_coefs, body_pose, volume):
+    np.save(os.path.join(save_dir, f'gender.npy'), GENDER_TO_INT_DICT[gender])
+    np.save(os.path.join(save_dir, f'verts.npy'), vertices)
+    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
+    np.save(os.path.join(save_dir, f'pose.npy'), body_pose)
+    np.save(os.path.join(save_dir, f'volume.npy'), volume)
+
+
 def set_shape(model, shape_coefs):
     if type(shape_coefs) != torch.Tensor:
         shape_coefs = torch.unsqueeze(torch.tensor(shape_coefs, dtype=torch.float32), dim=0)
-    return model(betas=shape_coefs, return_verts=True)
+        return model(betas=shape_coefs, return_verts=True)
+    if type(model) == smplx.star.STAR:
+        return model(pose=torch.zeros((1, 72), device='cpu'), betas=shape_coefs, trans=torch.zeros((1, 3), device='cpu'))
 
 
 def create_model(gender, num_coefs=10, model_type='smpl'):
-    if model_type == 'smpl':
-        body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
+    if model_type == 'star':
+        return smplx.star.STAR()
     else:
-        body_pose = torch.zeros((1, SMPLX_NUM_KPTS * 3))
-    return smplx.create(MODELS_DIR, model_type=model_type,
-                        gender=gender, use_face_contour=False,
-                        num_betas=num_coefs,
-                        body_pose=body_pose,
-                        ext='npz')
+        if model_type == 'smpl':
+            body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
+        elif model_type == 'smplx':
+            body_pose = torch.zeros((1, SMPLX_NUM_KPTS * 3))
+        return smplx.create(MODELS_DIR, model_type=model_type,
+                            gender=gender, use_face_contour=False,
+                            num_betas=num_coefs,
+                            body_pose=body_pose,
+                            ext='npz')
 
 
 def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, sid):
     output = set_shape(model, shape_coefs)
 
-    joints = output.joints.detach().cpu().numpy().squeeze()
+    if type(model) != smplx.star.STAR:
+        joints = output.joints.detach().cpu().numpy().squeeze()
 
-    vertices = output.vertices.detach().cpu().numpy().squeeze()
-    faces = model.faces.squeeze()
-    body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
-        vertex_colors=np.tile(colors['grey'], (6890, 1)))
-    silhouettes = render_sample(body_mesh, dataset_name, gender, 
-            sid)
-    
-    save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
-    Path(save_dir).mkdir(parents=True, exist_ok=True)
+        vertices = output.vertices.detach().cpu().numpy().squeeze()
+        faces = model.faces.squeeze()
+        body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+            vertex_colors=np.tile(colors['grey'], (6890, 1)))
+        silhouettes = render_sample(body_mesh, dataset_name, gender, 
+                sid)
+        
+        save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-    save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, body_pose, body_mesh.volume)
+        save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, body_pose, body_mesh.volume)
+
+    else:
+        vertices = output.detach().cpu().numpy().squeeze()
+        faces = output.f
+
+        body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+            vertex_colors=np.tile(colors['grey'], (6890, 1)))
+
+        save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+
+        save_star(save_dir, gender, vertices, shape_coefs, body_pose, body_mesh.volume)
 
 
 def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_coefs=10):
@@ -139,10 +165,10 @@ def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_
         perm = np.array(perm)
         perm[0] = 0.
         np_shape_coefs[perm_idx + start_idx] = perm
-    shape_coefs = torch.from_numpy(np_shape_coefs)
+    shape_coefs = torch.from_numpy(np_shape_coefs).to('cpu')
     zero_pose = np.zeros([1, SMPL_NUM_KPTS * 3])
     # NOTE: Generating SMPL-X models.
-    model = create_model(gender, model_type='smplx')
+    model = create_model(gender, model_type='star')
 
     # NOTE: If not regenerate, last shape will still be regenerated, which is OK.
     for subject_idx in range(start_idx, start_idx + num_subjects):
