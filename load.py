@@ -33,8 +33,8 @@ class MeshMeasurements:
     INSEAM_POINT = 3149
     LEFT_SHOULDER = 3011
     RIGHT_SHOULDER = 6470
-    LEFT_CHEST = 1347
-    RIGHT_CHEST = 6411
+    LEFT_CHEST = 1423
+    RIGHT_CHEST = 4896
     LEFT_WAIST = 631
     RIGHT_WAIST = 4424
     UPPER_BELLY_POINT = 3504
@@ -43,8 +43,8 @@ class MeshMeasurements:
     RIGHT_HIP = 4949
     LEFT_MID_FINGER = 2445
     RIGHT_MID_FINGER = 5906
-    LEFT_WRIST = 2279
-    RIGHT_WRIST = 5644
+    LEFT_WRIST = 2241
+    RIGHT_WRIST = 5702
     LEFT_INNER_ELBOW = 1663
     RIGHT_INNER_ELBOW = 5121
 
@@ -53,6 +53,14 @@ class MeshMeasurements:
     LEFT_ANKLE = 3334
 
     LOWER_BELLY_POINT = 1769
+    FOREHEAD_POINT = 335
+    NECK_POINT = 3050
+    PELVIS_POINT = 3145
+    RIGHT_BICEP_POINT = 6281
+    RIGHT_FOREARM_POINT = 5084
+    RIGHT_THIGH_POINT = 4971
+    RIGHT_CALF_POINT = 4589
+    RIGHT_ANKLE_POINT = 6723
 
     # Mesh measurement idnexes.
     OVERALL_HEIGHT = (HEAD_TOP, LEFT_HEEL)
@@ -194,12 +202,116 @@ class MeshMeasurements:
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
-    def measurements(self):
+    def head_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.FOREHEAD_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def neck_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.NECK_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def chest_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.LEFT_CHEST])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def pelvis_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.PELVIS_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def wrist_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            VERT_NORMAL,
+            self.verts[self.LEFT_WRIST])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def bicep_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            VERT_NORMAL,
+            self.verts[self.RIGHT_BICEP_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def forearm_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            VERT_NORMAL,
+            self.verts[self.RIGHT_FOREARM_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments])
+
+    @property
+    def thigh_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.RIGHT_THIGH_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
+
+    @property
+    def calf_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.RIGHT_CALF_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
+
+    @property
+    def ankle_circumference(self):
+        line_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.RIGHT_ANKLE_POINT])
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
+
+    @property
+    def allmeasurements(self):
         return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])
 
+    @property
+    def apmeasurements(self):
+        return np.array([getattr(self, x) for x in MeshMeasurements.aplabels()])
+
     @staticmethod
-    def labels():
+    def alllabels():
         return [x for x in dir(MeshMeasurements) if '_' in x and x[0].islower()]
+
+    @staticmethod
+    def aplabels():
+        return [
+            'head_circumference',
+            'neck_circumference',
+            'shoulder_to_crotch',
+            'chest_circumference',
+            'waist_circumference',
+            'pelvis_circumference',
+            'wrist_circumference',
+            'bicep_circumference',
+            'forearm_circumference',
+            'arm_length',
+            'inside_leg_length',
+            'thigh_circumference',
+            'calf_circumference',
+            'ankle_circumference',
+            'shoulder_breadth'
+        ]
 
 
 class SoftFeatures():
@@ -438,12 +550,13 @@ def prepare_in(verts, faces, volume, kpts, silhs, gender, args):
     #pose_features = PoseFeatures(kpts, index_set)
     silhouette_features = SilhouetteFeatures(silhs)
 
-    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
+    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 2.5)
+    #weight = mesh_measurements.weight
     soft_features = SoftFeatures(gender, weight)
     
     regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
         pose_features, silhouette_features, soft_features)
-    return regressor.get_data(), mesh_measurements.measurements
+    return regressor.get_data(), mesh_measurements.allmeasurements
 
 
 def load(args):
@@ -506,7 +619,7 @@ def load_star(args):
         
         regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
             pose_features, silhouette_features, soft_features)
-        return regressor.get_data(), mesh_measurements.measurements
+        return regressor.get_data(), mesh_measurements.all_measurements
 
     # TODO: Use both data, not only male data.
     data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')

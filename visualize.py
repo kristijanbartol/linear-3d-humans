@@ -37,7 +37,7 @@ def visualize_measure_errors(measure_errors):
     fig_path = os.path.join('vis/', f'measurement_errors.png')
 
     measure_dict = dict(zip(
-        MeshMeasurements.labels(), 
+        MeshMeasurements.alllabels(), 
         [[x] for x in measure_errors])
     )
     pd_params = pd.DataFrame(measure_dict)

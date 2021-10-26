@@ -8,9 +8,9 @@ def params_error(pred_params, gt_params):
     return np.abs(pred_params - gt_params)
 
 
-def measurement_error(pred_verts, gt_verts):
-    pred_meas = MeshMeasurements(pred_verts).measurements
-    gt_meas = MeshMeasurements(gt_verts).measurements
+def measurement_error(model_faces, pred_verts, gt_verts):
+    pred_meas = MeshMeasurements(pred_verts, model_faces).allmeasurements
+    gt_meas = MeshMeasurements(gt_verts, model_faces).allmeasurements
     return np.abs(pred_meas - gt_meas)
 
 
@@ -31,11 +31,17 @@ def evaluate(y_predict, y_target, genders, mode='measurements'):
             gender = GENDER_TO_STR_DICT[genders[sample_idx]]
             gt_params = y_target[sample_idx]
             
-            pred_verts = set_shape(create_model(gender), pred_params).vertices.detach().cpu().numpy().squeeze()
-            gt_verts = set_shape(create_model(gender), gt_params).vertices.detach().cpu().numpy().squeeze()
+            model = create_model(gender)
+            pred_output = set_shape(model, pred_params)
+            pred_verts = pred_output.vertices.detach().cpu().numpy().squeeze()
+
+            gt_output = set_shape(model, gt_params)
+            gt_verts = gt_output.vertices.detach().cpu().numpy().squeeze()
+
+            model_faces = model.faces.squeeze()
 
             params_errors.append(params_error(pred_params, gt_params))
-            measurement_errors.append(measurement_error(pred_verts, gt_verts))
+            measurement_errors.append(measurement_error(model_faces, pred_verts, gt_verts))
             surface2surface_dists.append(surface2surface_dist(pred_verts, gt_verts))
 
         params_errors = np.array(params_errors)

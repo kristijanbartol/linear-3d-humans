@@ -118,4 +118,6 @@ data/
 vis/
 vposer*/
 
+*.png
+
 git_token
