@@ -4,11 +4,12 @@ from cv2 import imread
 import json
 from pathlib import Path
 import trimesh
+import pickle
 import numpy as np
 
 from human_body_prior.tools.omni_tools import colors
 
-from generate import SMPL_NUM_KPTS, create_model, set_shape, GENDER_TO_INT_DICT
+from generate import GENDER_TO_STR_DICT, SMPL_NUM_KPTS, create_model, set_shape, GENDER_TO_INT_DICT
 from utils import img_to_silhouette
 
 
@@ -169,7 +170,62 @@ def prepare_star():
         data_dict[key] = []
 
 
+def prepare_3dpw():
+    data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/3dpw'
+    est_kptss_dir = os.path.join(data_dir, 'keypoints', '{}', 'front')
+    metadata_dir = os.path.join(data_dir, 'sequenceFiles', 'sequenceFiles', 'test')
+
+    save_dir_template = os.path.join('data', '3dpw', 'prepared', '{}')
+
+    data_dict = {
+        'genders': [[], []],
+        'poses': [[], []],
+        'shapes': [[], []],
+        'vertss': [[], []],
+        'facess': [[], []],
+        'volumes': [[], []]
+    }
+
+    for fname in os.listdir(metadata_dir):
+        fpath = os.path.join(metadata_dir, fname)
+        with open(fpath, 'rb') as fmeta:
+            data = pickle.load(fmeta, encoding='latin1')
+            
+        for subject_idx in range(len(data['genders'])):
+            shape = data['betas'][subject_idx][:10]
+            #for frame_idx in range(len(data['img_frame_ids'])):
+            for frame_idx in range(100):
+                print(fname, subject_idx, frame_idx)
+                gender = data['genders'][subject_idx]
+                gender_idx = 0 if gender == 'm' else 1
+                data_dict['genders'].append(0 if gender == 'm' else 1)
+
+                data_dict['poses'][gender_idx].append(data['poses'][subject_idx][frame_idx])
+                data_dict['shapes'][gender_idx].append(shape)
+
+                smpl_model = create_model(GENDER_TO_STR_DICT[gender_idx])
+                smpl_output = set_shape(smpl_model, shape)
+                verts = smpl_output.vertices.detach().cpu().numpy().squeeze()
+                faces = smpl_model.faces.squeeze()
+                body_mesh = trimesh.Trimesh(vertices=verts, faces=faces, 
+                    vertex_colors=np.tile(colors['grey'], (6890, 1)))
+
+                data_dict['vertss'][gender_idx].append(verts)
+                data_dict['facess'][gender_idx].append(faces)
+                data_dict['volumes'][gender_idx].append(body_mesh.volume)
+
+    for key in data_dict:
+        for gender_idx in range(2):
+            save_dir = save_dir_template.format(GENDER_TO_STR_DICT[gender_idx])
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+
+            data_dict[key][gender_idx] = np.array(data_dict[key][gender_idx], dtype=np.float32)
+            np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key][gender_idx])
+        data_dict[key] = []
+
+
 if __name__ == '__main__':
-    prepare_caesar()
+    #prepare_caesar()
     #prepare_gt('star')
     #prepare_star()
+    prepare_3dpw()

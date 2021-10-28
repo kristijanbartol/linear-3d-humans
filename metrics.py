@@ -9,8 +9,8 @@ def params_error(pred_params, gt_params):
 
 
 def measurement_error(model_faces, pred_verts, gt_verts):
-    pred_meas = MeshMeasurements(pred_verts, model_faces).allmeasurements
-    gt_meas = MeshMeasurements(gt_verts, model_faces).allmeasurements
+    pred_meas = MeshMeasurements(pred_verts, model_faces).apmeasurements
+    gt_meas = MeshMeasurements(gt_verts, model_faces).apmeasurements
     return np.abs(pred_meas - gt_meas)
 
 

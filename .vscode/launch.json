@@ -32,8 +32,11 @@
                 "--pose_reg_type", "P2",
                 //"--silh_reg_type", "Si4",
                 "--soft_reg_type", "So1",
-                "--target", "measurements",
-                "--model", "linear"
+                "--target", "measurements",     // do not use fit-to-shape anymore
+                "--model", "linear",
+                "--mode", "train",
+                "--gender", "male",
+                //"--pretrained", "caesar"
             ]
         }
     ]
