@@ -542,15 +542,14 @@ class Regressor():
 def prepare_in(verts, faces, volume, gender, args):
     mesh_measurements = MeshMeasurements(verts, faces, volume)
 
-    height = mesh_measurements.overall_height + np.random.normal(0, .0)
-    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 0.)
+    height = mesh_measurements.overall_height + np.random.normal(0, .01)
+    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
 
-    return np.array([height, weight, height * weight]), mesh_measurements.allmeasurements
+    return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.allmeasurements
 
 
 def load(args):
-    # TODO: Use both data, not only male data.
-    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')
+    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', args.gender)
 
     regressor_name = 'inputs.npy'
     regressor_path = os.path.join(data_dir, regressor_name)
@@ -567,9 +566,6 @@ def load(args):
             verts = data_dict['vertss'][sample_idx]
             faces = data_dict['facess'][sample_idx]
             volume = data_dict['volumes'][sample_idx]
-            #kpts = data_dict[f'{args.data_type}_kptss'][sample_idx]
-            #silhs = np.array([data_dict['front_silhs'][sample_idx], data_dict['side_silhs'][sample_idx]])
-            #silhs = np.array([data_dict['front_silhs'], data_dict['side_silhs']])
             gender = data_dict['genders'][sample_idx]
 
             sample_in, sample_measurements = prepare_in(verts, faces, volume, gender, args)
@@ -586,71 +582,4 @@ def load(args):
         samples_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
-    #samples_in = normalize(samples_in, axis=0)
-
-    # NOTE: Measurements are here in case I want to experiment with regressing to them instead of shape coefs.
     return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
-    #return data_dict['shapes'][:, 0, :4], data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
-
-
-def load_star(args):
-
-    def prepare_in(verts, faces, volume, gender, args):
-        mesh_measurements = MeshMeasurements(verts, volume)
-
-        index_set = MeshJointIndexSet if args.data_type == 'gt' else OpenPoseJointIndexSet
-        height = mesh_measurements.overall_height + np.random.normal(0, 0.)
-        #pose_features = PoseFeatures(None, index_set, math.floor(mesh_measurements.overall_height * 100)/100.0)
-        pose_features = PoseFeatures(None, index_set, height)
-        #pose_features = PoseFeatures(kpts, index_set)
-        silhouette_features = SilhouetteFeatures(None)
-
-        weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 0.)
-        soft_features = SoftFeatures(gender, weight)
-        
-        regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
-            pose_features, silhouette_features, soft_features)
-
-        
-        return np.array([height, weight]), mesh_measurements.all_measurements
-
-    # TODO: Use both data, not only male data.
-    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')
-
-    regressor_name = f'{args.pose_reg_type}_{args.silh_reg_type}_{args.soft_reg_type}.npy'
-    regressor_path = os.path.join(data_dir, regressor_name)
-
-    data_dict = {}
-    for fname in os.listdir(data_dir):
-        data_dict[fname.split('.')[0]] = np.load(os.path.join(data_dir, fname))
-
-    if not os.path.exists(regressor_path):
-        samples_in = []
-        measurements_all = []
-
-        for sample_idx in range(data_dict['genders'].shape[0]):
-            verts = data_dict['vertss'][sample_idx]
-            faces = data_dict['facess'][sample_idx]
-            volume = data_dict['volumes'][sample_idx]
-            #silhs = np.array([data_dict['front_silhs'], data_dict['side_silhs']])
-            gender = data_dict['genders'][sample_idx]
-
-            sample_in, sample_measurements = prepare_in(verts, faces, volume, gender, args)
-
-            samples_in.append(sample_in)
-            measurements_all.append(sample_measurements)
-
-        samples_in = np.array(samples_in)
-        measurements_all = np.array(measurements_all)
-
-        np.save(regressor_path, samples_in)
-        np.save(os.path.join(data_dir, 'measurements.npy'), measurements_all)
-    else:
-        samples_in = np.load(regressor_path)
-        measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
-
-    samples_in = normalize(samples_in, axis=0)
-
-    # NOTE: Measurements are here in case I want to experiment with regressing to them instead of shape coefs.
-    return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
-    #return data_dict['shapes'][:2, 0], data_dict['shapes'][2:, 0], measurements_all, data_dict['genders']

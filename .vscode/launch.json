@@ -13,7 +13,7 @@
             // generate.py
             //"args": [
             //    "--name", "star",
-            //    "--male", "5000",
+            //    "--male", "1000",
             //    "--female", "1000",
             //],
 
@@ -27,7 +27,7 @@
             // train.py
             "args": [
                 "--data_root", "data/",
-                "--dataset_name", "caesar",
+                "--dataset_name", "star",
                 "--target", "measurements",
                 "--gender", "male"
             ]

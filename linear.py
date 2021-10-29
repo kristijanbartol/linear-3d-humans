@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 
-from load import load, load_star
+from load import load
 from metrics import evaluate
 from models import Models
 from logs import log
@@ -25,8 +25,8 @@ def init_argparse():
         help='target variable'
     )
     parser.add_argument(
-        '--gender', type=str, choices=['male', 'female', 'neutral'],
-        help='gender type'
+        '--gender', type=str, choices=['male', 'female', 'neutral', 'both'],
+        help='If both, then evaluate gender-specific model on all data. If neutral, use neutral model'
     )
 
     return parser
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     if args.dataset_name != 'star':
         X, y, measurements, genders = load(args)
     else:
-        X, y, measurements, genders = load_star(args)
+        X, y, measurements, genders = load(args)
     print('Train/test splitting...')
     X_train, X_test, y_train, y_test, meas_train, meas_test, _, gender_test = train_test_split(
         X, y, measurements, genders, test_size=0.33, random_state=2021)
@@ -62,5 +62,5 @@ if __name__ == '__main__':
 
     print('Logging to stdout...')
     log(model, args, params_errors, measurement_errors, s2s_dists)
-    print('Visualizing...')
-    visualize(model, args, params_errors, measurement_errors, s2s_dists)
+    #print('Visualizing...')
+    #visualize(model, args, params_errors, measurement_errors, s2s_dists)

@@ -135,6 +135,7 @@ def prepare_star():
         'poses': 'pose',
         'shapes': 'shape',
         'vertss': 'verts',
+        'facess': 'faces',
         'volumes': 'volume'
     }
 
@@ -147,11 +148,12 @@ def prepare_star():
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
     data_dict = {
-        'genders': [],
-        'poses': [],
-        'shapes': [],
-        'vertss': [],
-        'volumes': []
+        'genders': [[], []],
+        'poses': [[], []],
+        'shapes': [[], []],
+        'vertss': [[], []],
+        'facess': [[], []],
+        'volumes': [[], []]
     }
 
     for key in data_dict:
@@ -170,6 +172,6 @@ def prepare_star():
 
 
 if __name__ == '__main__':
-    prepare_caesar()
+    #prepare_caesar()
     #prepare_gt('star')
-    #prepare_star()
+    prepare_star()

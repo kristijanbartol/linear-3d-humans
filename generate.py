@@ -75,9 +75,10 @@ def save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, bo
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
 
 
-def save_star(save_dir, gender, vertices, shape_coefs, body_pose, volume):
+def save_star(save_dir, gender, vertices, faces, shape_coefs, body_pose, volume):
     np.save(os.path.join(save_dir, f'gender.npy'), GENDER_TO_INT_DICT[gender])
     np.save(os.path.join(save_dir, f'verts.npy'), vertices)
+    np.save(os.path.join(save_dir, f'faces.npy'), faces)
     np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
     np.save(os.path.join(save_dir, f'pose.npy'), body_pose)
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
@@ -134,7 +135,7 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, sid):
         save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-        save_star(save_dir, gender, vertices, shape_coefs, body_pose, body_mesh.volume)
+        save_star(save_dir, gender, vertices, faces, shape_coefs, body_pose, body_mesh.volume)
 
 
 def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_coefs=10):
