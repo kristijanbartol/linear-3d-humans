@@ -536,34 +536,23 @@ class Regressor():
 
     @staticmethod
     def get_labels(args):
-        pose_labels = getattr(Regressor, args.pose_reg_type) if args.pose_reg_type is not None else []
-        silh_labels = getattr(Regressor, args.silh_reg_type) if args.silh_reg_type is not None else []
-        soft_labels = getattr(Regressor, args.soft_reg_type) if args.soft_reg_type is not None else []
-        return pose_labels + silh_labels + soft_labels
+        return ['height', 'weight']
 
 
-def prepare_in(verts, faces, volume, kpts, silhs, gender, args):
+def prepare_in(verts, faces, volume, gender, args):
     mesh_measurements = MeshMeasurements(verts, faces, volume)
 
-    index_set = MeshJointIndexSet if args.data_type == 'gt' else OpenPoseJointIndexSet
-    pose_features = PoseFeatures(kpts, index_set, math.floor(mesh_measurements.overall_height * 100)/100.0)
-    #pose_features = PoseFeatures(kpts, index_set)
-    silhouette_features = SilhouetteFeatures(silhs)
+    height = mesh_measurements.overall_height + np.random.normal(0, .0)
+    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 0.)
 
-    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 2.5)
-    #weight = mesh_measurements.weight
-    soft_features = SoftFeatures(gender, weight)
-    
-    regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
-        pose_features, silhouette_features, soft_features)
-    return regressor.get_data(), mesh_measurements.allmeasurements
+    return np.array([height, weight, height * weight]), mesh_measurements.allmeasurements
 
 
 def load(args):
     # TODO: Use both data, not only male data.
     data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')
 
-    regressor_name = f'{args.pose_reg_type}_{args.silh_reg_type}_{args.soft_reg_type}.npy'
+    regressor_name = 'inputs.npy'
     regressor_path = os.path.join(data_dir, regressor_name)
 
     data_dict = {}
@@ -578,12 +567,12 @@ def load(args):
             verts = data_dict['vertss'][sample_idx]
             faces = data_dict['facess'][sample_idx]
             volume = data_dict['volumes'][sample_idx]
-            kpts = data_dict[f'{args.data_type}_kptss'][sample_idx]
-            silhs = np.array([data_dict['front_silhs'][sample_idx], data_dict['side_silhs'][sample_idx]])
+            #kpts = data_dict[f'{args.data_type}_kptss'][sample_idx]
+            #silhs = np.array([data_dict['front_silhs'][sample_idx], data_dict['side_silhs'][sample_idx]])
             #silhs = np.array([data_dict['front_silhs'], data_dict['side_silhs']])
             gender = data_dict['genders'][sample_idx]
 
-            sample_in, sample_measurements = prepare_in(verts, faces, volume, kpts, silhs, gender, args)
+            sample_in, sample_measurements = prepare_in(verts, faces, volume, gender, args)
 
             samples_in.append(sample_in)
             measurements_all.append(sample_measurements)
@@ -597,7 +586,7 @@ def load(args):
         samples_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
-    samples_in = normalize(samples_in, axis=0)
+    #samples_in = normalize(samples_in, axis=0)
 
     # NOTE: Measurements are here in case I want to experiment with regressing to them instead of shape coefs.
     return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
@@ -610,16 +599,20 @@ def load_star(args):
         mesh_measurements = MeshMeasurements(verts, volume)
 
         index_set = MeshJointIndexSet if args.data_type == 'gt' else OpenPoseJointIndexSet
-        pose_features = PoseFeatures(None, index_set, math.floor(mesh_measurements.overall_height * 100)/100.0)
+        height = mesh_measurements.overall_height + np.random.normal(0, 0.)
+        #pose_features = PoseFeatures(None, index_set, math.floor(mesh_measurements.overall_height * 100)/100.0)
+        pose_features = PoseFeatures(None, index_set, height)
         #pose_features = PoseFeatures(kpts, index_set)
         silhouette_features = SilhouetteFeatures(None)
 
-        weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 0.5)
+        weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 0.)
         soft_features = SoftFeatures(gender, weight)
         
         regressor = Regressor(args.pose_reg_type, args.silh_reg_type, args.soft_reg_type,
             pose_features, silhouette_features, soft_features)
-        return regressor.get_data(), mesh_measurements.all_measurements
+
+        
+        return np.array([height, weight]), mesh_measurements.all_measurements
 
     # TODO: Use both data, not only male data.
     data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')

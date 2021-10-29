@@ -20,8 +20,10 @@ def surface2surface_dist(pred_verts, gt_verts):
 
 def evaluate(y_predict, y_target, genders, mode='measurements'):
     if mode == 'measurements':
-        return np.zeros(10), np.zeros(10), np.mean(np.abs(y_predict - y_target), axis=0), \
-            np.std(np.abs(y_predict - y_target), axis=0), np.empty(0), np.empty(0)
+        #return np.zeros(10), np.zeros(10), np.zeros(10), np.mean(np.abs(y_predict - y_target), axis=0), \
+        #    np.std(np.abs(y_predict - y_target), axis=0), np.max(np.abs(y_predict - y_target), axis=0), np.empty(0), np.empty(0), np.empty(0)
+        return np.zeros((y_predict.shape[0], 10)), np.abs(y_predict - y_target), np.empty(0)
+    '''
     else:
         params_errors = []
         measurement_errors = []
@@ -58,3 +60,4 @@ def evaluate(y_predict, y_target, genders, mode='measurements'):
         surface2surface_stds = np.std(surface2surface_dists, axis=0)
 
         return params_means, params_stds, measurement_means, measurement_stds, surface2surface_means, surface2surface_stds
+    '''
