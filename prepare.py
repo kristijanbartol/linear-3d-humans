@@ -141,7 +141,7 @@ def prepare_star():
 
     data_dir = os.path.join('data', 'star', 'generated')
     kpts_dir = os.path.join('data', 'star', 'keypoints')  # for est_kptss
-    # TODO: Create directories for both genders.
+    # TODO: Create directories for both genders!!!!!!!!!!!!!!!
     save_dir = os.path.join('data', 'star', 'prepared', 'male')
 
     Path(kpts_dir).mkdir(parents=True, exist_ok=True)
@@ -171,7 +171,28 @@ def prepare_star():
         data_dict[key] = []
 
 
+# TODO: Should use this for preparing STAR also.
+def prepare_smpl(dataset_name):
+    data_dir = os.path.join('data', dataset_name, 'generated')
+    shapes = [[], []]
+
+    for gidx, gender in enumerate(['male', 'female']):
+        save_dir = os.path.join('data', dataset_name, 'prepared', gender)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+
+        for subj_dirname in [x for x in os.listdir(data_dir) if x.startswith(gender)]:
+            print(subj_dirname)
+            subj_dirpath = os.path.join(data_dir, subj_dirname)
+
+            data = np.load(os.path.join(subj_dirpath, f'shape.npy'))
+            shapes[gidx].append(data)
+
+        shapes[gidx] = np.array(shapes[gidx], dtype=np.float32)
+        np.save(os.path.join(save_dir, f'shapes.npy'), shapes[gidx])
+
+
 if __name__ == '__main__':
     #prepare_caesar()
     #prepare_gt('star')
-    prepare_star()
+    #prepare_star()
+    prepare_smpl('smpl-full')
