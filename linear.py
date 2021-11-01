@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 
-from load import load
+from load import load, load_from_shapes
 from metrics import evaluate
 from models import Models
 from logs import log
@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     print(f'Preparing {args.dataset_name} dataset...')
     if args.dataset_name != 'star':
-        X, y, measurements, genders = load(args)
+        X, y, measurements, genders = load_from_shapes(args)
     else:
         X, y, measurements, genders = load(args)
     print('Train/test splitting...')

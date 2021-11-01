@@ -79,7 +79,8 @@ def save_star(save_dir, gender, vertices, faces, shape_coefs, body_pose, volume)
 
 def set_shape(model, shape_coefs):
     if type(shape_coefs) != torch.Tensor:
-        shape_coefs = torch.unsqueeze(torch.tensor(shape_coefs, dtype=torch.float32), dim=0)
+        #shape_coefs = torch.unsqueeze(torch.tensor(shape_coefs, dtype=torch.float32), dim=0)
+        shape_coefs = torch.tensor(shape_coefs, dtype=torch.float32)
         return model(betas=shape_coefs, return_verts=True)
     if type(model) == smplx.star.STAR:
         return model(pose=torch.zeros((1, 72), device='cpu'), betas=shape_coefs, trans=torch.zeros((1, 3), device='cpu'))

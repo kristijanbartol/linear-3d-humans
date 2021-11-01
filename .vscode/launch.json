@@ -11,12 +11,12 @@
             "program": "${file}",
             "console": "integratedTerminal",
             // generate.py
-            "args": [
-                "--name", "smpl-full",
-                "--model", "smpl",
-                "--male", "100000",
-                "--female", "100000",
-            ],
+            //"args": [
+            //    "--name", "smpl-full",
+            //    "--model", "smpl",
+            //    "--male", "100000",
+            //    "--female", "100000",
+            //],
 
             // demo.py
             //"args": [
@@ -26,12 +26,12 @@
             //]
 
             // train.py
-            //"args": [
-            //    "--data_root", "data/",
-            //    "--dataset_name", "star",
-            //    "--target", "measurements",
-            //    "--gender", "male"
-            //]
+            "args": [
+                "--data_root", "data/",
+                "--dataset_name", "caesar",
+                "--target", "measurements",
+                "--gender", "male"
+            ]
         }
     ]
 }

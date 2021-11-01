@@ -18,7 +18,7 @@ def surface2surface_dist(pred_verts, gt_verts):
     return np.linalg.norm(pred_verts - gt_verts, axis=1)
 
 
-def evaluate(y_predict, y_target, genders, mode='measurements'):
+def evaluate(y_predict, y_target, mode='measurements'):
     if mode == 'measurements':
         #return np.zeros(10), np.zeros(10), np.zeros(10), np.mean(np.abs(y_predict - y_target), axis=0), \
         #    np.std(np.abs(y_predict - y_target), axis=0), np.max(np.abs(y_predict - y_target), axis=0), np.empty(0), np.empty(0), np.empty(0)

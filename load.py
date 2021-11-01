@@ -5,6 +5,8 @@ from pyrender.mesh import Mesh
 from sklearn.preprocessing import normalize
 import trimesh
 
+from generate import GENDER_TO_INT_DICT, create_model, set_shape
+
 
 def get_dist(*vs):
     # NOTE: Works both for 3D and 2D joint coordinates.
@@ -81,15 +83,43 @@ class MeshMeasurements:
     FOREARM_LENGTH = (LEFT_INNER_ELBOW, LEFT_WRIST)
     INSIDE_LEG_LENGTH = (LOW_LEFT_HIP, LEFT_ANKLE)
 
-    def __init__(self, verts, faces, volume=None):
+    # For proposer labels.
+    overall_height = None
+
+    @staticmethod
+    def __init_from_shape__(gender, shape, mesh_size=None):
+        model = create_model(gender)
+        model_output = set_shape(model, shape)
+        verts = model_output.vertices.detach().cpu().numpy().squeeze()
+        faces = model.faces.squeeze()
+
+        return MeshMeasurements(verts, faces, mesh_size)
+
+    def __init__(self, verts, faces, mesh_size=None, keep_mesh=False):
         self.verts = verts
         self.faces = faces
-        self.weight = volume
 
         self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
 
-    @property
-    def overall_height(self):
+        self.weight = self.mesh.volume
+
+        self.overall_height = self._get_overall_height()
+
+        if mesh_size is not None:
+            self.verts *= (mesh_size / self.overall_height)
+            self.overall_height = self._get_overall_height()
+            self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
+
+        self.allmeasurements = self._get_all_measurements()
+
+        # TODO: For now, you can always delete mesh after constructor.
+        if not keep_mesh:
+            self.verts = None
+            self.faces = None
+            self.mesh = None
+
+    # Use this to obtain overall height, but use overall_height property on the outside.
+    def _get_overall_height(self):
         return get_height(
             self.verts[self.OVERALL_HEIGHT[0]], 
             self.verts[self.OVERALL_HEIGHT[1]]
@@ -281,8 +311,7 @@ class MeshMeasurements:
             self.verts[self.RIGHT_ANKLE_POINT])
         return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
 
-    @property
-    def allmeasurements(self):
+    def _get_all_measurements(self):
         return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])
 
     @property
@@ -540,7 +569,7 @@ class Regressor():
 
 
 def prepare_in(verts, faces, volume, gender, args):
-    mesh_measurements = MeshMeasurements(verts, faces, volume)
+    mesh_measurements = MeshMeasurements(verts, faces)
 
     height = mesh_measurements.overall_height + np.random.normal(0, .01)
     weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
@@ -583,3 +612,47 @@ def load(args):
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
     return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
+
+
+def prepare_in_from_shapes(gender, shape):
+    mesh_measurements = MeshMeasurements.__init_from_shape__(gender, shape)
+
+    height = mesh_measurements.overall_height + np.random.normal(0, .01)
+    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
+
+    return np.array([height, weight]), mesh_measurements.allmeasurements
+
+
+def load_from_shapes(args):
+    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', args.gender)
+
+    regressor_name = 'inputs.npy'
+    regressor_path = os.path.join(data_dir, regressor_name)
+
+    shapes = np.load(os.path.join(data_dir, 'shapes.npy'))
+
+    if not os.path.exists(regressor_path):
+        samples_in = []
+        measurements_all = []
+
+        for shape_idx, shape in enumerate(shapes[:2000]):
+            if shape_idx % 1000 == 0 and shape_idx != 0:
+                print(shape_idx)
+            sample_in, sample_measurements = prepare_in_from_shapes(args.gender, shape)
+
+            samples_in.append(sample_in)
+            measurements_all.append(sample_measurements)
+
+        samples_in = np.array(samples_in)
+        measurements_all = np.array(measurements_all)
+
+        np.save(regressor_path, samples_in)
+        np.save(os.path.join(data_dir, 'measurements.npy'), measurements_all)
+    else:
+        samples_in = np.load(regressor_path)
+        measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
+
+    genders_all = np.array([GENDER_TO_INT_DICT[args.gender]] * samples_in.shape[0])
+
+    # TODO: Update code (generate.py) so that you remove this odd indexing of shapes.
+    return samples_in, shapes[:, 0], measurements_all, genders_all
