@@ -87,13 +87,13 @@ class MeshMeasurements:
     overall_height = None
 
     @staticmethod
-    def __init_from_shape__(gender, shape, mesh_size=None):
+    def __init_from_shape__(gender, shape, mesh_size=None, keep_mesh=False):
         model = create_model(gender)
         model_output = set_shape(model, shape)
         verts = model_output.vertices.detach().cpu().numpy().squeeze()
         faces = model.faces.squeeze()
 
-        return MeshMeasurements(verts, faces, mesh_size)
+        return MeshMeasurements(verts, faces, mesh_size, keep_mesh)
 
     def __init__(self, verts, faces, mesh_size=None, keep_mesh=False):
         self.verts = verts
@@ -112,11 +112,15 @@ class MeshMeasurements:
 
         self.allmeasurements = self._get_all_measurements()
 
-        # TODO: For now, you can always delete mesh after constructor.
         if not keep_mesh:
             self.verts = None
             self.faces = None
             self.mesh = None
+
+    def flush(self):
+        self.verts = None
+        self.faces = None
+        self.mesh = None
 
     # Use this to obtain overall height, but use overall_height property on the outside.
     def _get_overall_height(self):
@@ -614,11 +618,11 @@ def load(args):
     return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
 
 
-def prepare_in_from_shapes(gender, shape):
-    mesh_measurements = MeshMeasurements.__init_from_shape__(gender, shape)
+def prepare_in_from_shapes(args, shape):
+    mesh_measurements = MeshMeasurements.__init_from_shape__(args.gender, shape)
 
-    height = mesh_measurements.overall_height + np.random.normal(0, .01)
-    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
+    height = mesh_measurements.overall_height + np.random.normal(0, args.height_noise)
+    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, args.weight_noise)
 
     return np.array([height, weight]), mesh_measurements.allmeasurements
 
@@ -635,10 +639,10 @@ def load_from_shapes(args):
         samples_in = []
         measurements_all = []
 
-        for shape_idx, shape in enumerate(shapes[:2000]):
+        for shape_idx, shape in enumerate(shapes):
             if shape_idx % 1000 == 0 and shape_idx != 0:
                 print(shape_idx)
-            sample_in, sample_measurements = prepare_in_from_shapes(args.gender, shape)
+            sample_in, sample_measurements = prepare_in_from_shapes(args, shape)
 
             samples_in.append(sample_in)
             measurements_all.append(sample_measurements)

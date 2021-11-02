@@ -1,7 +1,12 @@
 import numpy as np
+import os
+from generate import GENDER_TO_STR_DICT
 
 from load import MeshMeasurements, Regressor
 from models import Models
+
+
+RESULTS_DIR = './results/'
 
 
 def log(model, args, params_errors, measurement_errors, s2s_dists):
@@ -39,3 +44,11 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
 #def log(model, args, params_errors, params_stds, measurement_errors, measurement_stds, s2s_dists, s2s_stds):
     #log(model, args, params_errors, params_stds, measurement_errors, measurement_stds, s2s_dists, s2s_stds)
     #log_feature_importances(model, args)
+
+
+def save_results(gender, pred_params, measurement_errors, s2s_dists, subject_idxs):
+    gender = GENDER_TO_STR_DICT[gender]
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_params.npy'), pred_params)   # NOTE: These are not errors, but estimations.
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_measurement_errors.npy'), measurement_errors)
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_s2s_errors.npy'), s2s_dists)
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_subject_idxs.npy'), subject_idxs)

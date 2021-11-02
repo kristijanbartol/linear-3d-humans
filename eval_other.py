@@ -1,15 +1,18 @@
 import os
 import numpy as np
 from scipy.io import loadmat
+from generate import GENDER_TO_INT_DICT
 
 from load import MeshMeasurements
 from metrics import evaluate
 from logs import log
+from visualize import visualize
 
 
 GT_ROOT = '/media/kristijan/kristijan-hdd-ex/datasets/NOMO/smple_lbfgsb_params/'
 GT_PATH_TEMPLATE = os.path.join(GT_ROOT, '{}', '{:04d}.mat')
 
+RESULTS_DIR = './results'
 
 EXPOSE_ROOT = '/media/kristijan/kristijan-hdd-ex/expose/'
 EXPOSE_EST_ROOT = os.path.join(EXPOSE_ROOT, 'output')
@@ -18,75 +21,85 @@ EXPOSE_EST_ROOT = os.path.join(EXPOSE_ROOT, 'output')
 def eval_smplify():
     SMPLIFY_PARAMS = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).reshape(1, 10)
 
+    est_params_all = []
     gt_params_all = []
 
-    est_meas_all = []
-    gt_meas_all = []
+    subject_idxs = []
+    genders_all = []
 
     for gender, num_samples in zip(['male', 'female'], [1474, 2675]):
-        for subject_idx in range(num_samples)[:100]:
-            print(f'{gender} {subject_idx}/{num_samples}')
+    #for gender, num_samples in zip(['male'], [1474]):
+        for subject_idx in range(num_samples):
             try:
                 gtpath = GT_PATH_TEMPLATE.format(gender, subject_idx)
                 gt_params = loadmat(gtpath)['shape'].reshape(1, 10)
                 gt_params_all.append(gt_params)
 
-                gt_meas_obj = MeshMeasurements.__init_from_shape__(gender, gt_params)
-                gt_size = gt_meas_obj.overall_height
-
-                est_meas_obj = MeshMeasurements.__init_from_shape__(gender, SMPLIFY_PARAMS, gt_size)
-
-                gt_meas_all.append(gt_meas_obj.allmeasurements)
-                est_meas_all.append(est_meas_obj.allmeasurements)
+                est_params_all.append(SMPLIFY_PARAMS)
+                genders_all.append(GENDER_TO_INT_DICT[gender])
+                subject_idxs.append(subject_idx)
             except FileNotFoundError as e:
                 print(f'Error with {gender} {subject_idx} ({e.filename})')
 
-    est_meas_all = np.array(est_meas_all)
-    gt_meas_all = np.array(gt_meas_all)
+    gt_params_all = np.array(gt_params_all)
+    est_params_all = np.array(est_params_all)
+    genders_all = np.array(genders_all, dtype=np.int8)
+    subject_idxs = np.array(subject_idxs, dtype=np.int32)
 
-    params_errors, measurement_errors, s2s_dists = evaluate(est_meas_all, gt_meas_all)
+    params_errors, measurement_errors, s2s_dists = evaluate(est_params_all, gt_params_all, genders_all, mode='shapes')
 
     log(None, None, params_errors, measurement_errors, s2s_dists)
+    #visualize(params_errors, measurement_errors, s2s_dists)
+
+    np.save(os.path.join(RESULTS_DIR, 'smplify_params.npy'), est_params_all)   # NOTE: These are not errors, but estimations.
+    np.save(os.path.join(RESULTS_DIR, 'smplify_measurement_errors.npy'), measurement_errors)
+    np.save(os.path.join(RESULTS_DIR, 'smplify_s2s_errors.npy'), s2s_dists)
+    np.save(os.path.join(RESULTS_DIR, 'smplify_genders.npy'), genders_all)
+    np.save(os.path.join(RESULTS_DIR, 'smplify_subject_idxs.npy'), subject_idxs)
 
 
 def eval_expose():
     est_params_all = []
     gt_params_all = []
 
-    est_meas_all = []
-    gt_meas_all = []
+    genders_all = []
+    subject_idxs = []
 
-    for dirname in os.listdir(EXPOSE_EST_ROOT)[:100]:
+    for dirname in os.listdir(EXPOSE_EST_ROOT):
         print(dirname)
         fname = f'{dirname}_params.npz'
         fpath = os.path.join(EXPOSE_EST_ROOT, dirname, fname)
 
         gender = dirname.split('_')[0]
-        subject_idx = dirname.split('_')[1].split('.')[0]
+        subject_idx = int(dirname.split('_')[1].split('.')[0])
+
+        subject_idxs.append(subject_idx)
 
         out_data = np.load(fpath)
         est_params = out_data['betas'].reshape(1, 10)
         est_params_all.append(est_params)
 
-        gtpath = GT_PATH_TEMPLATE.format(gender, str(subject_idx))
+        gtpath = GT_PATH_TEMPLATE.format(gender, subject_idx)
 
         gt_params = loadmat(gtpath)['shape'].reshape(1, 10)
         gt_params_all.append(gt_params)
 
-        gt_meas_obj = MeshMeasurements.__init_from_shape__(gender, gt_params)
-        gt_size = gt_meas_obj.overall_height
+        genders_all.append(GENDER_TO_INT_DICT[gender])
 
-        est_meas_obj = MeshMeasurements.__init_from_shape__(gender, est_params, gt_size)
+    gt_params_all = np.array(gt_params_all)
+    est_params_all = np.array(est_params_all)
+    genders_all = np.array(genders_all)
 
-        gt_meas_all.append(gt_meas_obj.allmeasurements)
-        est_meas_all.append(est_meas_obj.allmeasurements)
+    params_errors, measurement_errors, s2s_dists = evaluate(est_params_all, gt_params_all, genders_all, mode='shapes')
 
-    est_meas_all = np.array(est_meas_all)
-    gt_meas_all = np.array(gt_meas_all)
+    log(None, None, params_errors, measurement_errors, s2s_dists)
+    #visualize(params_errors, measurement_errors, s2s_dists)
 
-    params_errors, measurement_errors, s2s_dists = evaluate(est_meas_all, gt_meas_all)
-
-    print(measurement_errors.mean())
+    np.save(os.path.join(RESULTS_DIR, 'expose_params.npy'), est_params_all)   # NOTE: These are not errors, but estimations.
+    np.save(os.path.join(RESULTS_DIR, 'expose_measurement_errors.npy'), measurement_errors)
+    np.save(os.path.join(RESULTS_DIR, 'expose_s2s_errors.npy'), s2s_dists)
+    np.save(os.path.join(RESULTS_DIR, 'expose_genders.npy'), genders_all)
+    np.save(os.path.join(RESULTS_DIR, 'expose_subject_idxs.npy'), subject_idxs)
 
 
 

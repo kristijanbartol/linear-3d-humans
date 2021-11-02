@@ -117,6 +117,7 @@ human_body_prior/
 data/
 vis/
 vposer*/
+results/
 
 *.png
 

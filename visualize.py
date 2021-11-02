@@ -65,57 +65,43 @@ def visualize_feature_importances(model, args):
     fig.get_figure().savefig(fig_path)
 
 
-def visualize_s2s_dists(s2s_dists):
+# TODO: Convert this function to evaluate means of more than one model.
+def visualize_s2s_dists(s2s_dists_array):
     # TODO: Visualize both male and female mesh errors.
     model = create_model('male')
-    model_output = set_shape(model, np.zeros(10))
+    model_output = set_shape(model, np.zeros((1, 10)))
     vertices = model_output.vertices.detach().cpu().numpy().squeeze()
     faces = model.faces.squeeze()
 
     imw, imh = 1600, 1600
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
-    mv.set_background_color(colors['black'])
+    mv.set_background_color(colors['white'])
 
-    '''
-    fig = go.Figure(data=[
-    go.Mesh3d(
-        x=template_verts[:, 0],
-        y=template_verts[:, 1],
-        z=template_verts[:, 2],
-        colorbar_title='z',
-        colorscale=[[0, 'gold'],
-                    [0.5, 'mediumturquoise'],
-                    [1, 'magenta']],
-        # Intensity of each vertex, which will be interpolated and color-coded
-        intensity=s2s_dists,
-        # i, j and k give the vertices of triangles
-        # here we represent the 4 triangles of the tetrahedron surface
-        #i=[0, 0, 0, 1],
-        #j=[1, 2, 3, 2],
-        #k=[2, 3, 1, 3],
-        name='y',
-        showscale=True
-    )
-    ])
+    overall_max = s2s_dists_array.max()
+    for s2s_idx, s2s_dists in enumerate(s2s_dists_array):
 
-    fig.show()
-    '''
+        #error_colors = np.array([[x / s2s_dists.max(), 0.5, 0.] for x in s2s_dists])
+        error_colors = np.array([[x / overall_max, 0., 1. - x / overall_max] for x in s2s_dists])
 
-    error_colors = np.array([[x / s2s_dists.max(), 0.5, 0.] for x in s2s_dists])
+        body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+                #vertex_colors=np.tile(colors['grey'], (6890, 1)))
+                vertex_colors=error_colors)
 
-    body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
-            #vertex_colors=np.tile(colors['blue'], (6890, 1)))
-            vertex_colors=error_colors)
+        mv.set_meshes([body_mesh], group_name='static')
+        img = mv.render()
 
-    mv.set_meshes([body_mesh], group_name='static')
-    img = mv.render()
-
-    rgb = Image.fromarray(img, 'RGB')
-    rgb.save('s2s.png')
+        rgb = Image.fromarray(img, 'RGB')
+        rgb.save(os.path.join('vis', f's2s_{s2s_idx}.png'))
 
 
-def visualize(model, args, params_errors, measurement_errors, s2s_dists):
-    visualize_param_errors(params_errors)
-    visualize_measure_errors(measurement_errors)
+def visualize(params_errors, measurement_errors, s2s_dists):
+    #visualize_param_errors(params_errors)
+    #visualize_measure_errors(measurement_errors)
     #visualize_feature_importances(model, args)
     visualize_s2s_dists(s2s_dists)
+
+
+def visualize_all():
+    # Select male and female indexes to visualize at once.
+    # Take all predictions and visualize mean s2s errors.
+    pass
