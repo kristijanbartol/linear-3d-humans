@@ -48,12 +48,9 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
 
 def save_results(gender, pred_params, measurement_errors, s2s_dists, subject_idxs, args=None):
     gender = GENDER_TO_STR_DICT[gender]
-    if args is not None:
-        measurement_errors_name = f'{gender}_linear_measurement_errors_{args.height_noise}_{args.weight_noise}.npy'
-    else:
-        measurement_errors_name = f'{gender}_linear_measurement_errors.npy'
+    suffix = f'_{args.height_noise}_{args.weight_noise}' if args is not None else ''
 
-    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_params.npy'), pred_params)   # NOTE: These are not errors, but estimations.
-    np.save(os.path.join(RESULTS_DIR, measurement_errors_name), measurement_errors)
-    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_s2s_errors.npy'), s2s_dists)
-    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_subject_idxs.npy'), subject_idxs)
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_params{suffix}.npy'), pred_params)   # NOTE: These are not errors, but estimations.
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_measurement_errors{suffix}.npy'), measurement_errors)
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_s2s_errors{suffix}.npy'), s2s_dists)
+    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_subject_idxs{suffix}.npy'), subject_idxs)

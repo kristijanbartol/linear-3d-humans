@@ -29,8 +29,8 @@
             "args": [
                 "--data_root", "data/",
                 "--dataset_name", "caesar",
-                "--target", "measurements",
-                "--gender", "male",
+                "--target", "shape",
+                "--gender", "female",
                 "--height_noise", "0.01",
                 "--weight_noise", "1.5"
             ]
