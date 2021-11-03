@@ -630,7 +630,7 @@ def prepare_in_from_shapes(args, shape):
 def load_from_shapes(args):
     data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', args.gender)
 
-    regressor_name = 'inputs.npy'
+    regressor_name = f'inputs_{args.height_noise}_{args.weight_noise}.npy'
     regressor_path = os.path.join(data_dir, regressor_name)
 
     shapes = np.load(os.path.join(data_dir, 'shapes.npy'))

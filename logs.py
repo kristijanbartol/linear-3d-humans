@@ -46,9 +46,14 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
     #log_feature_importances(model, args)
 
 
-def save_results(gender, pred_params, measurement_errors, s2s_dists, subject_idxs):
+def save_results(gender, pred_params, measurement_errors, s2s_dists, subject_idxs, args=None):
     gender = GENDER_TO_STR_DICT[gender]
+    if args is not None:
+        measurement_errors_name = f'{gender}_linear_measurement_errors_{args.height_noise}_{args.weight_noise}.npy'
+    else:
+        measurement_errors_name = f'{gender}_linear_measurement_errors.npy'
+
     np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_params.npy'), pred_params)   # NOTE: These are not errors, but estimations.
-    np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_measurement_errors.npy'), measurement_errors)
+    np.save(os.path.join(RESULTS_DIR, measurement_errors_name), measurement_errors)
     np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_s2s_errors.npy'), s2s_dists)
     np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_subject_idxs.npy'), subject_idxs)

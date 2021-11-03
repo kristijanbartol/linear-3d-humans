@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     # NOTE: Need to predict shape parameters here.
     print('Saving results...')
-    save_results(genders[0], y_predict, measurement_errors, s2s_dists, test_indices)
+    save_results(genders[0], y_predict, measurement_errors, s2s_dists, test_indices, args)
 
     print('Logging to stdout...')
     log(model, args, params_errors, measurement_errors, s2s_dists)

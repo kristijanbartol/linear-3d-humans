@@ -33,8 +33,12 @@ def visualize_param_errors(params_errors):
     fig.get_figure().savefig(fig_path)
 
 
-def visualize_measure_errors(measure_errors):
-    fig_path = os.path.join('vis/', f'measurement_errors.png')
+def visualize_measure_errors(measure_errors, method='linear', args=None):
+    if args is not None:
+        fig_name = f'{method}_measurement_errors_{args.height_noise}_{args.weight_noise}.png' 
+    else: 
+        fig_name = f'{method}_measurement_errors.png'
+    fig_path = os.path.join('vis/', fig_name)
 
     measure_dict = dict(zip(
         MeshMeasurements.alllabels(), 
@@ -49,59 +53,81 @@ def visualize_measure_errors(measure_errors):
     fig.get_figure().savefig(fig_path)
 
 
-def visualize_feature_importances(model, args):
-    fig_path = os.path.join('vis/', f'feature_importances.png')
-
-    feature_importance_dict = dict(zip(
-        Regressor.get_labels(args), 
-        [[x] for x in Models.feature_importances(model)])
-    )
-    pd_params = pd.DataFrame(feature_importance_dict)
-
-    plt.figure()
-    sns.set_theme(style="darkgrid")
-    fig = sns.barplot(data=pd_params)
-
-    fig.get_figure().savefig(fig_path)
-
-
-# TODO: Convert this function to evaluate means of more than one model.
-def visualize_s2s_dists(s2s_dists_array):
-    # TODO: Visualize both male and female mesh errors.
-    model = create_model('male')
-    model_output = set_shape(model, np.zeros((1, 10)))
-    vertices = model_output.vertices.detach().cpu().numpy().squeeze()
+def visualize_s2s_dists(s2s_dists_array, gender='male', shapes=np.zeros((3, 1, 10)), methods=['linear'], subject_idxs=[0]):
+    model = create_model(gender)
     faces = model.faces.squeeze()
 
     imw, imh = 1600, 1600
     mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
     mv.set_background_color(colors['white'])
 
+    if len(s2s_dists_array.shape) == 1:
+        s2s_dists_array = s2s_dists_array.reshape((1, -1))
+
     overall_max = s2s_dists_array.max()
     for s2s_idx, s2s_dists in enumerate(s2s_dists_array):
+        model_output = set_shape(model, shapes[s2s_idx])
+        vertices = model_output.vertices.detach().cpu().numpy().squeeze()
 
-        #error_colors = np.array([[x / s2s_dists.max(), 0.5, 0.] for x in s2s_dists])
         error_colors = np.array([[x / overall_max, 0., 1. - x / overall_max] for x in s2s_dists])
 
         body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
-                #vertex_colors=np.tile(colors['grey'], (6890, 1)))
-                vertex_colors=error_colors)
+                vertex_colors=np.tile(colors['grey'], (6890, 1)))      # use this temporarily for Fig 1 mesh
+                #vertex_colors=error_colors)
 
         mv.set_meshes([body_mesh], group_name='static')
         img = mv.render()
 
         rgb = Image.fromarray(img, 'RGB')
-        rgb.save(os.path.join('vis', f's2s_{s2s_idx}.png'))
+        rgb.save(os.path.join('vis', f's2s_{gender}_{methods[s2s_idx]}_{subject_idxs[s2s_idx]}.png'))
 
 
 def visualize(params_errors, measurement_errors, s2s_dists):
     #visualize_param_errors(params_errors)
     #visualize_measure_errors(measurement_errors)
     #visualize_feature_importances(model, args)
-    visualize_s2s_dists(s2s_dists)
+    #visualize_s2s_dists(s2s_dists)
+    pass
 
 
 def visualize_all():
     # Select male and female indexes to visualize at once.
+    SUBJECT_IDXS = [
+        [817, 1298],    # male
+        [2229, 210]     # female
+    ]
+
+    GENDERS = ['male', 'female']
+    METHODS = ['expose', 'smplify', 'linear']
+
+    for gender_idx, gender in enumerate(GENDERS):
+        for subject_idx in SUBJECT_IDXS[gender_idx]:
+            all_params = []
+            all_measurement_errors = []
+            all_s2s_errors = []
+            
+            for method in METHODS:
+                params = np.load(f'./results/{gender}_{method}_params.npy')
+                measurement_errors = np.load(f'./results/{gender}_{method}_measurement_errors.npy')
+                s2s_errors = np.load(f'./results/{gender}_{method}_s2s_errors.npy')
+                subject_idxs = np.load(f'./results/{gender}_{method}_subject_idxs.npy')
+
+                array_idx = np.where(subject_idxs == subject_idx)
+
+                all_params.append(params[array_idx])
+                all_measurement_errors.append(measurement_errors[array_idx])
+                all_s2s_errors.append(s2s_errors[array_idx])
+
+            all_params = np.array(all_params)
+            all_measurement_errors = np.array(all_measurement_errors)
+            all_s2s_errors = np.array(all_s2s_errors)
+
+            visualize_s2s_dists(all_s2s_errors, gender, all_params, METHODS, SUBJECT_IDXS[gender_idx])
+
+
     # Take all predictions and visualize mean s2s errors.
     pass
+
+
+if __name__ == '__main__':
+    visualize_all()

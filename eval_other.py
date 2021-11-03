@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from scipy.io import loadmat
-from generate import GENDER_TO_INT_DICT
+from generate import GENDER_TO_INT_DICT, GENDER_TO_STR_DICT
 
 from load import MeshMeasurements
 from metrics import evaluate
@@ -51,11 +51,17 @@ def eval_smplify():
     log(None, None, params_errors, measurement_errors, s2s_dists)
     #visualize(params_errors, measurement_errors, s2s_dists)
 
-    np.save(os.path.join(RESULTS_DIR, 'smplify_params.npy'), est_params_all)   # NOTE: These are not errors, but estimations.
-    np.save(os.path.join(RESULTS_DIR, 'smplify_measurement_errors.npy'), measurement_errors)
-    np.save(os.path.join(RESULTS_DIR, 'smplify_s2s_errors.npy'), s2s_dists)
-    np.save(os.path.join(RESULTS_DIR, 'smplify_genders.npy'), genders_all)
-    np.save(os.path.join(RESULTS_DIR, 'smplify_subject_idxs.npy'), subject_idxs)
+    for gender_idx in [0, 1]:
+        gender_est_params_all = est_params_all[genders_all == gender_idx]
+        gender_measurement_errors = measurement_errors[genders_all == gender_idx]
+        gender_s2s_dists = s2s_dists[genders_all == gender_idx]
+        gender_subject_idxs = subject_idxs[genders_all == gender_idx]
+
+        gender_str = GENDER_TO_STR_DICT[gender_idx]
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_smplify_params.npy'), gender_est_params_all)   # NOTE: These are not errors, but estimations.
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_smplify_measurement_errors.npy'), gender_measurement_errors)
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_smplify_s2s_errors.npy'), gender_s2s_dists)
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_smplify_subject_idxs.npy'), gender_subject_idxs)
 
 
 def eval_expose():
@@ -89,18 +95,24 @@ def eval_expose():
     gt_params_all = np.array(gt_params_all)
     est_params_all = np.array(est_params_all)
     genders_all = np.array(genders_all)
+    subject_idxs = np.array(subject_idxs)
 
     params_errors, measurement_errors, s2s_dists = evaluate(est_params_all, gt_params_all, genders_all, mode='shapes')
 
     log(None, None, params_errors, measurement_errors, s2s_dists)
     #visualize(params_errors, measurement_errors, s2s_dists)
 
-    np.save(os.path.join(RESULTS_DIR, 'expose_params.npy'), est_params_all)   # NOTE: These are not errors, but estimations.
-    np.save(os.path.join(RESULTS_DIR, 'expose_measurement_errors.npy'), measurement_errors)
-    np.save(os.path.join(RESULTS_DIR, 'expose_s2s_errors.npy'), s2s_dists)
-    np.save(os.path.join(RESULTS_DIR, 'expose_genders.npy'), genders_all)
-    np.save(os.path.join(RESULTS_DIR, 'expose_subject_idxs.npy'), subject_idxs)
+    for gender_idx in [0, 1]:
+        gender_est_params_all = est_params_all[genders_all == gender_idx]
+        gender_measurement_errors = measurement_errors[genders_all == gender_idx]
+        gender_s2s_dists = s2s_dists[genders_all == gender_idx]
+        gender_subject_idxs = subject_idxs[genders_all == gender_idx]
 
+        gender_str = GENDER_TO_STR_DICT[gender_idx]
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_expose_params.npy'), gender_est_params_all)   # NOTE: These are not errors, but estimations.
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_expose_measurement_errors.npy'), gender_measurement_errors)
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_expose_s2s_errors.npy'), gender_s2s_dists)
+        np.save(os.path.join(RESULTS_DIR, f'{gender_str}_expose_subject_idxs.npy'), gender_subject_idxs)
 
 
 if __name__ == '__main__':
