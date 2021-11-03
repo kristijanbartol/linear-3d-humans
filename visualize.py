@@ -17,40 +17,25 @@ from models import Models
 from generate import create_model, set_shape
 
 
-def visualize_param_errors(params_errors):
-    fig_path = os.path.join('vis/', f'params_errors.png')
-
-    params_dict = dict(zip(
-        [f'PCA{x}' for x in range(params_errors.shape[0])], 
-        [[x] for x in params_errors])
-    )
-    pd_params = pd.DataFrame(params_dict)
-
-    plt.figure()
-    sns.set_theme(style="darkgrid")
-    fig = sns.barplot(data=pd_params)
-
-    fig.get_figure().savefig(fig_path)
-
-
-def visualize_measure_errors(measure_errors, method='linear', args=None):
-    if args is not None:
-        fig_name = f'{method}_measurement_errors_{args.height_noise}_{args.weight_noise}.png' 
-    else: 
-        fig_name = f'{method}_measurement_errors.png'
+def visualize_measure_errors(measure_errors, label, noise_stds):
+    fig_name = f'noisy_measurement_errors_{label}.png'
     fig_path = os.path.join('vis/', fig_name)
 
+    all_to_ap_measurement_idxs = [10, 15, 20, 6, 23, 18, 25, 4, 8, 1, 13, 21, 5, 0, 19]
+    ap_measurement_errors = measure_errors[:, all_to_ap_measurement_idxs].mean(axis=2) * 100.
+
+    noise_stds = [x * 100 if label == 'height' else x for x in noise_stds]
+    to_string = lambda x: str(x) + 'cm' if label == 'height' else str(x) + 'kg' 
+    labels = ['Measurement'] + [to_string(x) for x in noise_stds]
+    data = [np.array(MeshMeasurements.letterlabels())] + [x for x in ap_measurement_errors]
     measure_dict = dict(zip(
-        MeshMeasurements.alllabels(), 
-        [[x] for x in measure_errors])
+        labels, 
+        data)
     )
     pd_params = pd.DataFrame(measure_dict)
+    pd_params.plot(x='Measurement', y=labels[1:], kind='bar', figsize=(12, 5))
 
-    plt.figure()
-    sns.set_theme(style="darkgrid")
-    fig = sns.barplot(data=pd_params)
-
-    fig.get_figure().savefig(fig_path)
+    plt.savefig(fig_path)
 
 
 def visualize_s2s_dists(s2s_dists_array, gender='male', shapes=np.zeros((3, 1, 10)), methods=['linear'], subject_idx=0):
@@ -160,6 +145,21 @@ def visualize_mean():
         visualize_s2s_dists(all_s2s_errors, gender=gender, methods=METHODS)
 
 
+def visualize_noisy_measurements(label, noise_stds):
+    fpath_template = './results/male_linear_measurement_errors_{}_{}.npy'
+
+    all_measure_errors = []
+    for std in noise_stds:
+        kwargs = (std, 0.0) if label == 'height' else (0.0, std)
+        all_measure_errors.append(np.load(fpath_template.format(kwargs[0], kwargs[1])))
+    
+    all_measure_errors = np.array(all_measure_errors)
+    visualize_measure_errors(all_measure_errors, label, noise_stds)
+
+
 if __name__ == '__main__':
     #visualize_individual()
-    visualize_mean()
+    #visualize_mean()
+
+    visualize_noisy_measurements('height', [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.05])
+    visualize_noisy_measurements('weight', [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0])

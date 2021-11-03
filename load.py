@@ -346,6 +346,26 @@ class MeshMeasurements:
             'shoulder_breadth'
         ]
 
+    @staticmethod
+    def letterlabels():
+        return [
+            'A',
+            'B',
+            'C',
+            'D',
+            'E',
+            'F',
+            'G',
+            'H',
+            'I',
+            'J',
+            'K',
+            'L',
+            'M',
+            'N',
+            'O'
+        ]
+
 
 class SoftFeatures():
 

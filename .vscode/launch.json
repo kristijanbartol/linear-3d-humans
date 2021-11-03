@@ -29,10 +29,11 @@
             "args": [
                 "--data_root", "data/",
                 "--dataset_name", "caesar",
-                "--target", "shape",
-                "--gender", "female",
-                "--height_noise", "0.01",
-                "--weight_noise", "1.5"
+                "--target", "measurements",
+                "--gender", "male",
+                "--height_noise", "0.0",
+                "--weight_noise", "0.0",
+                //"--num_interaction", "0"
             ]
         }
     ]
