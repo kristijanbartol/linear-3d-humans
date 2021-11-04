@@ -15,7 +15,7 @@ class Models():
 
     @staticmethod
     def poly():
-        return make_pipeline(PolynomialFeatures(degree=5), LinearRegression())
+        return make_pipeline(PolynomialFeatures(degree=4), LinearRegression())
 
     @staticmethod
     def tree():
@@ -23,7 +23,7 @@ class Models():
 
     @staticmethod
     def mlp():
-        return MLPRegressor(hidden_layer_sizes=(2000), random_state=Models.RANDOM_STATE, max_iter=500)
+        return MLPRegressor(hidden_layer_sizes=(250), random_state=Models.RANDOM_STATE, max_iter=500)
 
     @staticmethod
     def feature_importances(model):

@@ -35,6 +35,9 @@ def init_argparse():
     parser.add_argument(
         '--weight_noise', type=float, help='std added to weight GT'
     )
+    parser.add_argument(
+        '--num_interaction', type=int, help='# interaction terms added to linear model'
+    )
 
     return parser
 
@@ -55,6 +58,7 @@ if __name__ == '__main__':
 
     print(f'Creating model...')
     model = LinearRegression()
+    #model = Models.poly()
     print(f'Target variable: {args.target}...')
     reg = model.fit(X_train, y_train if args.target == 'shape' else meas_train)
     print('Predicting...')

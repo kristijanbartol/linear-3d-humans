@@ -39,7 +39,7 @@ def eval_smplify():
                 genders_all.append(GENDER_TO_INT_DICT[gender])
                 subject_idxs.append(subject_idx)
             except FileNotFoundError as e:
-                print(f'Error with {gender} {subject_idx} ({e.filename})')
+                pass
 
     gt_params_all = np.array(gt_params_all)
     est_params_all = np.array(est_params_all)
@@ -72,7 +72,7 @@ def eval_expose():
     subject_idxs = []
 
     for dirname in os.listdir(EXPOSE_EST_ROOT):
-        print(dirname)
+        #print(dirname)
         fname = f'{dirname}_params.npz'
         fpath = os.path.join(EXPOSE_EST_ROOT, dirname, fname)
 
@@ -116,5 +116,5 @@ def eval_expose():
 
 
 if __name__ == '__main__':
-    eval_smplify()
-    #eval_expose()
+    #eval_smplify()
+    eval_expose()

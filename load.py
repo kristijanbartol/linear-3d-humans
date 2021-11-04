@@ -644,13 +644,17 @@ def prepare_in_from_shapes(args, shape):
     height = mesh_measurements.overall_height + np.random.normal(0, args.height_noise)
     weight = (1000 * mesh_measurements.weight) + np.random.normal(0, args.weight_noise)
 
-    return np.array([height, weight]), mesh_measurements.allmeasurements
+    INTERACTION_TERMS = [weight / height ** 2, weight * height, weight ** 2, height ** 2, height / weight]
+
+    return np.array([height, weight] + INTERACTION_TERMS[:args.num_interaction]), mesh_measurements.allmeasurements
 
 
 def load_from_shapes(args):
     data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', args.gender)
 
-    regressor_name = f'inputs_{args.height_noise}_{args.weight_noise}.npy'
+    suffix = f'_{args.num_interaction}' if args.num_interaction > 0 else ''
+
+    regressor_name = f'inputs_{args.height_noise}_{args.weight_noise}{suffix}.npy'
     regressor_path = os.path.join(data_dir, regressor_name)
 
     shapes = np.load(os.path.join(data_dir, 'shapes.npy'))
