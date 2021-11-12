@@ -1,3 +1,4 @@
+from math import floor
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,11 +18,16 @@ from models import Models
 from generate import create_model, set_shape
 
 
+os.environ['PYOPENGL_PLATFORM'] = 'egl'
+
+
+all_to_ap_measurement_idxs = [10, 15, 20, 6, 23, 18, 25, 4, 8, 1, 13, 21, 5, 0, 19]
+
+
 def visualize_measure_errors(measure_errors, label, noise_stds):
     fig_name = f'noisy_measurement_errors_{label}.png'
     fig_path = os.path.join('vis/', fig_name)
 
-    all_to_ap_measurement_idxs = [10, 15, 20, 6, 23, 18, 25, 4, 8, 1, 13, 21, 5, 0, 19]
     ap_measurement_errors = measure_errors[:, all_to_ap_measurement_idxs].mean(axis=2) * 100.
 
     noise_stds = [x * 100 if label == 'height' else x for x in noise_stds]
@@ -38,6 +44,26 @@ def visualize_measure_errors(measure_errors, label, noise_stds):
     plt.savefig(fig_path)
 
 
+def crop_to_content(img):
+    for row_idx1 in range(img.shape[0]):
+        if not np.all(img[row_idx1] == 255):
+            break
+
+    for col_idx1 in range(img.shape[0]):
+        if not np.all(img[:, col_idx1] == 255):
+            break
+
+    for row_idx2 in range(img.shape[0] - 1, 0, -1):
+        if not np.all(img[row_idx2] == 255):
+            break
+
+    for col_idx2 in range(img.shape[0] - 1, 0, -1):
+        if not np.all(img[:, col_idx2] == 255):
+            break
+
+    return img[row_idx1:row_idx2, col_idx1:col_idx2]
+
+
 def visualize_s2s_dists(s2s_dists_array, gender='male', shapes=np.zeros((3, 1, 10)), methods=['linear'], subject_idx=0):
     model = create_model(gender)
     faces = model.faces.squeeze()
@@ -50,11 +76,16 @@ def visualize_s2s_dists(s2s_dists_array, gender='male', shapes=np.zeros((3, 1, 1
         s2s_dists_array = s2s_dists_array.reshape((1, -1))
 
     overall_max = s2s_dists_array.max()
+    overall_min = s2s_dists_array.min()
     for s2s_idx, s2s_dists in enumerate(s2s_dists_array):
         model_output = set_shape(model, shapes[s2s_idx])
         vertices = model_output.vertices.detach().cpu().numpy().squeeze()
 
-        error_colors = np.array([[x / overall_max, 0., 1. - x / overall_max] for x in s2s_dists])
+        #cmap_colors = plt.cm.get_cmap('cool').colors
+        cmap = plt.cm.get_cmap('turbo')
+        cmap_colors = cmap(np.arange(0, cmap.N))[:, :3]
+        color_idxs = np.array([floor(x / overall_max * 256. - 0.1) for x in s2s_dists])
+        error_colors = np.array([cmap_colors[x] for x in color_idxs])
 
         body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
                 #vertex_colors=np.tile(colors['grey'], (6890, 1)))      # use this temporarily for Fig 1 mesh
@@ -66,8 +97,12 @@ def visualize_s2s_dists(s2s_dists_array, gender='male', shapes=np.zeros((3, 1, 1
         mv.set_meshes([body_mesh], group_name='static')
         img = mv.render()
 
-        rgb = Image.fromarray(img, 'RGB')
+        cropped_img = crop_to_content(img)
+        rgb = Image.fromarray(cropped_img, 'RGB')
         rgb.save(os.path.join('vis', f's2s_{gender}_{methods[s2s_idx]}_{subject_idx}.png'))
+
+    print(f'{gender} ({subject_idx}) max: {overall_max * 1000.}')
+    print(f'{gender} ({subject_idx}) min: {overall_min * 1000.}')
 
 
 def visualize(params_errors, measurement_errors, s2s_dists):
@@ -81,7 +116,7 @@ def visualize(params_errors, measurement_errors, s2s_dists):
 def visualize_individual():
     # Select male and female indexes to visualize at once.
     SUBJECT_IDXS = [
-        [817, 1298],    # male
+        [284, 1298],    # male
         [338, 2516]     # female
     ]
 
@@ -95,7 +130,8 @@ def visualize_individual():
             all_s2s_errors = []
             
             for method in METHODS:
-                suffix = '_0.01_1.5' if method == 'linear' else ''
+                suffix = '_0.01_1.5_2' if method == 'linear' else ''
+                #suffix += '_2' if gender == 'male' and method == 'linear' else ''
 
                 params = np.load(f'./results/{gender}_{method}_params{suffix}.npy')
                 measurement_errors = np.load(f'./results/{gender}_{method}_measurement_errors{suffix}.npy')
@@ -131,7 +167,7 @@ def visualize_mean():
         all_s2s_errors = []
         
         for method in METHODS:
-            suffix = '_0.01_1.5' if method == 'linear' else ''
+            suffix = '_0.01_1.5_2' if method == 'linear' else ''
 
             measurement_errors = np.load(f'./results/{gender}_{method}_measurement_errors{suffix}.npy')
             s2s_errors = np.load(f'./results/{gender}_{method}_s2s_errors{suffix}.npy')
@@ -157,9 +193,28 @@ def visualize_noisy_measurements(label, noise_stds):
     visualize_measure_errors(all_measure_errors, label, noise_stds)
 
 
-if __name__ == '__main__':
-    #visualize_individual()
-    #visualize_mean()
+def visualize_measurement_distribution(gender, X, all_measurements):
+    fig_name = f'measurement_distribution_{gender}.png'
+    fig_path = os.path.join('vis/', fig_name)
 
-    visualize_noisy_measurements('height', [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.05])
-    visualize_noisy_measurements('weight', [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0])
+    ap_measurements = all_measurements[:, all_to_ap_measurement_idxs]
+
+    labels = ['Hg', 'Wg'] + MeshMeasurements.letterlabels()
+    data = np.concatenate([X, ap_measurements], axis=1).swapaxes(0, 1) * 100.
+    data[1, :] /= 100.
+    measure_dict = dict(zip(
+        labels, 
+        data)
+    )
+    df = pd.DataFrame(measure_dict)
+    df.boxplot(grid=False, figsize=(12, 5), rot=0)
+
+    plt.savefig(fig_path)
+
+
+if __name__ == '__main__':
+    visualize_individual()
+    visualize_mean()
+
+    #visualize_noisy_measurements('height', [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.05])
+    #visualize_noisy_measurements('weight', [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0])

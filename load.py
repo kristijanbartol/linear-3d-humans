@@ -111,6 +111,7 @@ class MeshMeasurements:
             self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
 
         self.allmeasurements = self._get_all_measurements()
+        #self.apmeasurements = self._get_ap_measurements()
 
         if not keep_mesh:
             self.verts = None
@@ -317,6 +318,9 @@ class MeshMeasurements:
 
     def _get_all_measurements(self):
         return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])
+
+    def _get_ap_measurements(self):
+        return np.array([getattr(self, x) for x in MeshMeasurements.aplabels()])
 
     @property
     def apmeasurements(self):
@@ -598,7 +602,7 @@ def prepare_in(verts, faces, volume, gender, args):
     height = mesh_measurements.overall_height + np.random.normal(0, .01)
     weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
 
-    return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.allmeasurements
+    return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.apmeasurements
 
 
 def load(args):
@@ -657,6 +661,7 @@ def load_from_shapes(args):
     regressor_name = f'inputs_{args.height_noise}_{args.weight_noise}{suffix}.npy'
     regressor_path = os.path.join(data_dir, regressor_name)
 
+    #shapes = np.load(os.path.join(data_dir, 'shapes.npy'))
     shapes = np.load(os.path.join(data_dir, 'shapes.npy'))
 
     if not os.path.exists(regressor_path):

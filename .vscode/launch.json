@@ -12,10 +12,10 @@
             "console": "integratedTerminal",
             // generate.py
             //"args": [
-            //    "--name", "smpl-full",
+            //    "--name", "smpl-uniform-1.5",
             //    "--model", "smpl",
-            //    "--male", "100000",
-            //    "--female", "100000",
+            //    "--male", "10000",
+            //    "--female", "10000",
             //],
 
             // demo.py
@@ -30,7 +30,7 @@
                 "--data_root", "data/",
                 "--dataset_name", "caesar",
                 "--target", "measurements",
-                "--gender", "male",
+                "--gender", "female",
                 "--height_noise", "0.01",
                 "--weight_noise", "1.5",
                 "--num_interaction", "0"

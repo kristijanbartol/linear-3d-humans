@@ -195,4 +195,4 @@ if __name__ == '__main__':
     #prepare_caesar()
     #prepare_gt('star')
     #prepare_star()
-    prepare_smpl('smpl-full')
+    prepare_smpl('smpl-uniform-1.5')

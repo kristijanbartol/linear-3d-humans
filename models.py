@@ -33,3 +33,12 @@ class Models():
             return model.feature_importances_
         else:
             return model.coef_
+
+    @staticmethod
+    def intercepts(model):
+        if type(model) == MLPRegressor:
+            return None
+        elif type(model) == DecisionTreeRegressor:
+            return None
+        else:
+            return model.intercept_

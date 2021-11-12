@@ -152,14 +152,17 @@ def generate_subjects(dataset_name, gender, model_type, num_subjects, regenerate
     if num_subjects <= 0:
         return
 
-    shape_combination_coefs = all_combinations_with_permutations([0.0, 0.4, 0.8], num_coefs)
-    num_subjects = min(num_subjects, len(shape_combination_coefs))
-    np_shape_coefs = np.empty(shape=(num_subjects + start_idx, 1, num_coefs), dtype=np.float32)
+    #shape_combination_coefs = all_combinations_with_permutations([0.0, 0.4, 0.8], num_coefs)
+    #num_subjects = min(num_subjects, len(shape_combination_coefs))
+    #np_shape_coefs = np.empty(shape=(num_subjects + start_idx, 1, num_coefs), dtype=np.float32)
+    '''
     for perm_idx, perm in enumerate(
             list(shape_combination_coefs)[start_idx : start_idx + num_subjects]):
         perm = np.array(perm)
         perm[0] = 0.
         np_shape_coefs[perm_idx + start_idx] = perm
+    '''
+    np_shape_coefs = np.random.uniform(-1.5, 1.5, size=(num_subjects, 1, 10))
     shape_coefs = torch.from_numpy(np_shape_coefs).to('cpu')
     zero_pose = np.zeros([1, SMPL_NUM_KPTS * 3])
     # NOTE: Generating SMPL-X models.

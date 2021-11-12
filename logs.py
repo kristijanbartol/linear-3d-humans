@@ -28,17 +28,32 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
 
     print('\nMEASURES\n=========')
     measure_labels = MeshMeasurements.alllabels()
-    for meas_idx in range(measurement_means.shape[0]):
-        print(f'{measure_labels[meas_idx]}: {(measurement_means[meas_idx]):.6f}mm, {(measurement_stds[meas_idx]):.6f}mm, {(measurement_maxs[meas_idx]):.6f}mm')
-    print(f'\nMean: {measurement_means.mean():.6f}, {measurement_stds.mean():.6f}')
+    all_to_ap_measurement_idxs = [10, 15, 20, 6, 23, 18, 25, 4, 8, 1, 13, 21, 5, 0, 19]
+    ap_labels = np.array(measure_labels)[all_to_ap_measurement_idxs]
+    ap_measurement_means = measurement_means[all_to_ap_measurement_idxs]
+    ap_measurement_stds = measurement_stds[all_to_ap_measurement_idxs]
+    ap_measurement_maxs = measurement_maxs[all_to_ap_measurement_idxs]
+    
+    for meas_idx in range(ap_measurement_means.shape[0]):
+        print(f'{ap_labels[meas_idx]}: {(ap_measurement_means[meas_idx]):.6f}mm, {(ap_measurement_stds[meas_idx]):.6f}mm, {(ap_measurement_maxs[meas_idx]):.6f}mm')
+    print(f'\nMean: {ap_measurement_means.mean():.6f}, {ap_measurement_stds.mean():.6f}')
 
     # For evaluating others.
     if args is not None:
         print('\nFEATURE IMPORTANCES\n===================')
-        feature_labels = Regressor.get_labels(args) + ['w0']
         importances = Models.feature_importances(model)
-        for meas_idx in range(len(measure_labels)):
-            print(f'{measure_labels[meas_idx]}: {importances[meas_idx]}')
+        if importances.shape[0] == 10:
+            intercepts = Models.intercepts(model)
+            all_coefs = np.concatenate([importances, intercepts.reshape((-1, 1))], axis=1)
+            np.save(os.path.join(RESULTS_DIR, f'{args.gender}_shape_coefs.npy'), all_coefs)
+        importances = importances[all_to_ap_measurement_idxs]
+        intercepts = Models.intercepts(model)[all_to_ap_measurement_idxs]
+        for meas_idx in range(len(ap_labels)):
+            print(f'{ap_labels[meas_idx]}: {importances[meas_idx]} {intercepts[meas_idx]}')
+        
+        all_coefs = np.concatenate([importances, intercepts.reshape((-1, 1))], axis=1)
+
+        np.save(os.path.join(RESULTS_DIR, f'{args.gender}_meas_coefs.npy'), all_coefs)
 
 
 #def log(model, args, params_errors, params_stds, measurement_errors, measurement_stds, s2s_dists, s2s_stds):
@@ -49,6 +64,7 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
 def save_results(gender, pred_params, measurement_errors, s2s_dists, subject_idxs, args=None):
     gender = GENDER_TO_STR_DICT[gender]
     suffix = f'_{args.height_noise}_{args.weight_noise}' if args is not None else ''
+    suffix += f'_{args.num_interaction}' if args.num_interaction > 0 else ''
 
     np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_params{suffix}.npy'), pred_params)   # NOTE: These are not errors, but estimations.
     np.save(os.path.join(RESULTS_DIR, f'{gender}_linear_measurement_errors{suffix}.npy'), measurement_errors)

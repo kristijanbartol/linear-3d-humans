@@ -116,5 +116,5 @@ def eval_expose():
 
 
 if __name__ == '__main__':
-    #eval_smplify()
-    eval_expose()
+    eval_smplify()
+    #eval_expose()
