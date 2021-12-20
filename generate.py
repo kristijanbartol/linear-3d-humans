@@ -78,12 +78,13 @@ def save_star(save_dir, gender, vertices, faces, shape_coefs, body_pose, volume)
 
 
 def set_shape(model, shape_coefs):
-    if type(shape_coefs) != torch.Tensor:
-        #shape_coefs = torch.unsqueeze(torch.tensor(shape_coefs, dtype=torch.float32), dim=0)
-        shape_coefs = torch.tensor(shape_coefs, dtype=torch.float32)
-        return model(betas=shape_coefs, return_verts=True)
     if type(model) == smplx.star.STAR:
         return model(pose=torch.zeros((1, 72), device='cpu'), betas=shape_coefs, trans=torch.zeros((1, 3), device='cpu'))
+
+
+    shape_coefs = torch.tensor(shape_coefs, dtype=torch.float32)
+    
+    return model(betas=shape_coefs, return_verts=True)
 
 
 def create_model(gender, num_coefs=10, model_type='smpl'):
@@ -107,13 +108,17 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, sid):
     if type(model) != smplx.star.STAR:
         #joints = output.joints.detach().cpu().numpy().squeeze()
 
-        #vertices = output.vertices.detach().cpu().numpy().squeeze()
-        #faces = model.faces.squeeze()
-        #body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
-        #    vertex_colors=np.tile(colors['grey'], (6890, 1)))
+        vertices = output.vertices.detach().cpu().numpy().squeeze()
+        faces = model.faces.squeeze()
+        body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+            vertex_colors=np.tile(colors['grey'], (6890, 1)))
+        
         #silhouettes = render_sample(body_mesh, dataset_name, gender, 
         #        sid)
-        
+
+        body_mesh.export('tmp.obj')
+
+
         save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:05d}')
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
@@ -247,6 +252,8 @@ def check_args(args):
 
 
 if __name__ == '__main__':
+    torch.manual_seed(2021)
+    np.random.seed(2021)
     parser = init_argparse()
     args = check_args(parser.parse_args())
     main(dataset_name=args.name,

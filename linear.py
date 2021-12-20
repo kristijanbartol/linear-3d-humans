@@ -59,6 +59,9 @@ if __name__ == '__main__':
         X, y, measurements, genders = load(args)
     print('Train/test splitting...')
 
+    np.save(f'{args.gender}_measurements.npy', np.concatenate([X, measurements], axis=1))
+    np.save('measurement_names.npy', np.array(['height', 'weight'] + MeshMeasurements.alllabels()))
+
 
     indices = np.arange(X.shape[0])
     

@@ -12,11 +12,11 @@ RESULTS_DIR = './results/'
 def log(model, args, params_errors, measurement_errors, s2s_dists):
     params_means = np.mean(params_errors, axis=0)
     measurement_means = np.mean(measurement_errors, axis=0) * 1000.
-    s2s_means = np.mean(s2s_dists, axis=0)
+    s2s_means = np.mean(s2s_dists, axis=0) * 1000.
 
     params_stds = np.std(params_errors, axis=0)
     measurement_stds = np.std(measurement_errors, axis=0) * 1000.
-    s2s_stds = np.std(s2s_dists, axis=0)
+    s2s_stds = np.std(s2s_dists, axis=0) * 1000.
 
     params_maxs = np.max(params_errors, axis=0)
     measurement_maxs = np.max(measurement_errors, axis=0) * 1000.
@@ -36,7 +36,8 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
     
     for meas_idx in range(ap_measurement_means.shape[0]):
         print(f'{ap_labels[meas_idx]}: {(ap_measurement_means[meas_idx]):.6f}mm, {(ap_measurement_stds[meas_idx]):.6f}mm, {(ap_measurement_maxs[meas_idx]):.6f}mm')
-    print(f'\nMean: {ap_measurement_means.mean():.6f}, {ap_measurement_stds.mean():.6f}')
+    print(f'\nMean: {ap_measurement_means.mean():.6f}, Std: {ap_measurement_stds.mean():.6f}')
+    print(f'Mean S2S: {np.mean(s2s_means)}, Std S2S: {np.mean(s2s_stds)}')
 
     # For evaluating others.
     if args is not None:

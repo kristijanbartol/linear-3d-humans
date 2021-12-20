@@ -42,7 +42,7 @@ def prepare_caesar():
     for gender, num_samples in zip(['male', 'female'], [1474, 2675]):
     #for gender, num_samples in zip(['male'], [1474]):
         for sample_idx in range(num_samples):
-            print(gender, sample_idx)
+            #print(gender, sample_idx)
             try:
                 data_dict['poses'].append(loadmat(
                     os.path.join(params_dir.format(gender), f'{sample_idx:04d}.mat'))['pose'])
@@ -52,7 +52,7 @@ def prepare_caesar():
                 data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
 
                 smpl_model = create_model(gender)
-                smpl_output = set_shape(smpl_model, data_dict['shapes'][-1][0])
+                smpl_output = set_shape(smpl_model, data_dict['shapes'][-1])
                 verts = smpl_output.vertices.detach().cpu().numpy().squeeze()
                 faces = smpl_model.faces.squeeze()
                 body_mesh = trimesh.Trimesh(vertices=verts, faces=faces, 
@@ -192,7 +192,7 @@ def prepare_smpl(dataset_name):
 
 
 if __name__ == '__main__':
-    #prepare_caesar()
+    prepare_caesar()
     #prepare_gt('star')
     #prepare_star()
-    prepare_smpl('smpl-uniform-1.5')
+    #prepare_smpl('smpl-uniform-1.5')

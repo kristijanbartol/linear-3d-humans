@@ -106,9 +106,7 @@ class MeshMeasurements:
         self.overall_height = self._get_overall_height()
 
         if mesh_size is not None:
-            self.verts *= (mesh_size / self.overall_height)
-            self.overall_height = self._get_overall_height()
-            self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
+            self._scale_mesh(mesh_size)
 
         self.allmeasurements = self._get_all_measurements()
         #self.apmeasurements = self._get_ap_measurements()
@@ -122,6 +120,11 @@ class MeshMeasurements:
         self.verts = None
         self.faces = None
         self.mesh = None
+
+    def _scale_mesh(self, mesh_size):
+        self.verts *= (mesh_size / self.overall_height)
+        self.overall_height = self._get_overall_height()
+        self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
 
     # Use this to obtain overall height, but use overall_height property on the outside.
     def _get_overall_height(self):

@@ -118,6 +118,10 @@ data/
 vis/
 vposer*/
 results/
+anthropometry_venv/
+
+*.npy
+*.zip
 
 *.png
 
