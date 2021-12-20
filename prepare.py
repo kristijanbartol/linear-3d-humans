@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import trimesh
 import numpy as np
+import pyrender
 
 from human_body_prior.tools.omni_tools import colors
 
@@ -23,6 +24,9 @@ def prepare_caesar():
     params_dir = os.path.join(data_dir, 'smple_lbfgsb_params', '{}')
     front_silhss_template = os.path.join(data_dir, 'rendered_rgb', '{}', 'front', 'silh')
     side_silhss_template = os.path.join(data_dir, 'rendered_rgb', '{}', 'side', 'silh')
+
+    meshes_dir = os.path.join(data_dir, 'meshes', '{}', '{:04d}.obj')
+    smpl_fits_dir = os.path.join(data_dir, 'smpl6890v_lbfgsb_fits', '{}', 'mesh_{}_{:04d}.obj')
 
     save_dir_template = os.path.join('data', 'caesar', 'prepared', '{}')
 
@@ -58,6 +62,12 @@ def prepare_caesar():
                 body_mesh = trimesh.Trimesh(vertices=verts, faces=faces, 
                     vertex_colors=np.tile(colors['grey'], (6890, 1)))
 
+                # Write mesh.
+                #pyrender.Mesh.from_trimesh(body_mesh)
+                #body_mesh.export(meshes_dir.format(gender, sample_idx))
+
+                their_mesh = trimesh.load_mesh(smpl_fits_dir.format(gender, gender, sample_idx))
+
                 with open(os.path.join(est_kptss_dir.format(gender), f'{sample_idx:04d}_keypoints.json')) as json_f:
                     data_dict['est_kptss'].append(process_openpose(json.load(json_f)))
                 data_dict['gt_kptss'].append(smpl_output.joints.detach().cpu().numpy().squeeze())
@@ -65,9 +75,12 @@ def prepare_caesar():
                     os.path.join(front_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
                 data_dict['side_silhs'].append(img_to_silhouette(imread(
                     os.path.join(side_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
-                data_dict['vertss'].append(verts)
-                data_dict['facess'].append(faces)
-                data_dict['volumes'].append(body_mesh.volume)
+                #data_dict['vertss'].append(verts)
+                data_dict['vertss'].append(their_mesh.vertices)
+                #data_dict['facess'].append(faces)
+                data_dict['facess'].append(their_mesh.faces)
+                #data_dict['volumes'].append(body_mesh.volume)
+                data_dict['volumes'].append(their_mesh.volume)
             except FileNotFoundError as e:
                 print(f'Error with {gender} {sample_idx} ({e.filename})')
 

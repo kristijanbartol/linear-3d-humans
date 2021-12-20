@@ -600,12 +600,12 @@ class Regressor():
 
 
 def prepare_in(verts, faces, volume, gender, args):
-    mesh_measurements = MeshMeasurements(verts, faces)
+    mesh_measurements = MeshMeasurements(verts, faces, keep_mesh=True)
 
     height = mesh_measurements.overall_height + np.random.normal(0, .01)
     weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
 
-    return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.apmeasurements
+    return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.allmeasurements
 
 
 def load(args):

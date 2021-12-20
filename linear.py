@@ -53,10 +53,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(f'Preparing {args.dataset_name} dataset...')
-    if args.dataset_name != 'star':
-        X, y, measurements, genders = load_from_shapes(args)
-    else:
-        X, y, measurements, genders = load(args)
+    #if args.dataset_name != 'star':
+    #    X, y, measurements, genders = load_from_shapes(args)
+    #else:
+    X, y, measurements, genders = load(args)
     print('Train/test splitting...')
 
     np.save(f'{args.gender}_measurements.npy', np.concatenate([X, measurements], axis=1))
