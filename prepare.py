@@ -13,6 +13,47 @@ from generate import SMPL_NUM_KPTS, create_model, set_shape, GENDER_TO_INT_DICT
 from utils import img_to_silhouette
 
 
+
+def prepare_caesar():
+    data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/caesar'
+    meshes_dir = os.path.join(data_dir, 'caesar-fitted-meshes')
+    save_dir_template = os.path.join('data', 'caesar', 'prepared', '{}')
+
+    data_dict = {
+        'genders': [],
+        'vertss': [],
+        'faces': [],
+        'volumes': []
+    }
+
+    faces = loadmat(os.path.join(data_dir, 'facesShapeModel.mat'))['faces'] - 1
+
+    #for gender, num_samples in zip(['male', 'female'], [1474, 2675]):
+    for gender, num_samples in zip(['male'], [4308]):
+        for fname in os.listdir(meshes_dir):
+            print(gender, fname)
+            try:
+                data_dict['vertss'].append(loadmat(
+                    os.path.join(meshes_dir, fname))['points'])
+
+                mesh = trimesh.Trimesh(vertices = data_dict['vertss'][-1], faces=faces, process=False)
+                mesh.export(os.path.join(data_dir, 'obj-meshes', fname.split('.')[0] + '.obj'))
+
+                #data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
+                #data_dict['volumes'].append(mesh.volume)
+            except FileNotFoundError as e:
+                print(f'Error with {gender} ({e.filename})')
+
+        '''
+        save_dir = save_dir_template.format(gender)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        for key in data_dict:
+            data_dict[key] = np.array(data_dict[key], dtype=np.float32)
+            np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+            data_dict[key] = []
+        '''
+
+
 def process_openpose(pose_json):
     # TODO: Use confidences (could have ones for GT).
     return np.array(pose_json['people'][0]['pose_keypoints_2d']).reshape([-1, 3])[:, :2]
@@ -60,7 +101,7 @@ def prepare_nomo():
                 verts = smpl_output.vertices.detach().cpu().numpy().squeeze()
                 faces = smpl_model.faces.squeeze()
                 body_mesh = trimesh.Trimesh(vertices=verts, faces=faces, 
-                    vertex_colors=np.tile(colors['grey'], (6890, 1)))
+                    vertex_colors=np.tile(colors['grey'], (6890, 1)))   # should also add process=False
 
                 # Write mesh.
                 #pyrender.Mesh.from_trimesh(body_mesh)
@@ -205,7 +246,8 @@ def prepare_smpl(dataset_name):
 
 
 if __name__ == '__main__':
-    prepare_nomo()
+    prepare_caesar()
+    #prepare_nomo()
     #prepare_gt('star')
     #prepare_star()
     #prepare_smpl('smpl-uniform-1.5')
