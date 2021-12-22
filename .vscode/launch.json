@@ -31,9 +31,9 @@
                 "--dataset_name", "caesar",
                 "--target", "measurements",
                 "--gender", "male",
-                "--height_noise", "0.01",
-                "--weight_noise", "1.5",
-                "--num_interaction", "2"
+                "--height_noise", "0.0",
+                "--weight_noise", "0.0",
+                "--num_interaction", "4"
             ]
         }
     ]

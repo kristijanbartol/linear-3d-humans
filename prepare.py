@@ -66,7 +66,7 @@ def prepare_caesar():
                 #pyrender.Mesh.from_trimesh(body_mesh)
                 #body_mesh.export(meshes_dir.format(gender, sample_idx))
 
-                their_mesh = trimesh.load_mesh(smpl_fits_dir.format(gender, gender, sample_idx))
+                their_mesh = trimesh.load(smpl_fits_dir.format(gender, gender, sample_idx), process=False)
 
                 with open(os.path.join(est_kptss_dir.format(gender), f'{sample_idx:04d}_keypoints.json')) as json_f:
                     data_dict['est_kptss'].append(process_openpose(json.load(json_f)))

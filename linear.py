@@ -56,6 +56,7 @@ if __name__ == '__main__':
     #if args.dataset_name != 'star':
     #    X, y, measurements, genders = load_from_shapes(args)
     #else:
+    #X, y, measurements, genders = load_from_shapes(args)
     X, y, measurements, genders = load(args)
     print('Train/test splitting...')
 
