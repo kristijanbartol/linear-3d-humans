@@ -28,7 +28,7 @@
             // train.py
             "args": [
                 "--data_root", "data/",
-                "--dataset_name", "caesar",
+                "--dataset_name", "nomo",
                 "--target", "measurements",
                 "--gender", "male",
                 "--height_noise", "0.0",

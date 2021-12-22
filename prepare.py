@@ -18,7 +18,7 @@ def process_openpose(pose_json):
     return np.array(pose_json['people'][0]['pose_keypoints_2d']).reshape([-1, 3])[:, :2]
 
 
-def prepare_caesar():
+def prepare_nomo():
     data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/NOMO'
     est_kptss_dir = os.path.join(data_dir, 'keypoints', '{}', 'front')
     params_dir = os.path.join(data_dir, 'smple_lbfgsb_params', '{}')
@@ -28,7 +28,7 @@ def prepare_caesar():
     meshes_dir = os.path.join(data_dir, 'meshes', '{}', '{:04d}.obj')
     smpl_fits_dir = os.path.join(data_dir, 'smpl6890v_lbfgsb_fits', '{}', 'mesh_{}_{:04d}.obj')
 
-    save_dir_template = os.path.join('data', 'caesar', 'prepared', '{}')
+    save_dir_template = os.path.join('data', 'nomo', 'prepared', '{}')
 
     data_dict = {
         'genders': [],
@@ -205,7 +205,7 @@ def prepare_smpl(dataset_name):
 
 
 if __name__ == '__main__':
-    prepare_caesar()
+    prepare_nomo()
     #prepare_gt('star')
     #prepare_star()
     #prepare_smpl('smpl-uniform-1.5')
