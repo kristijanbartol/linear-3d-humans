@@ -1,11 +1,12 @@
 import os
-import math
+from math import nan
 import numpy as np
 from pyrender.mesh import Mesh
 from sklearn.preprocessing import normalize
 import trimesh
 
 from generate import GENDER_TO_INT_DICT, create_model, set_shape
+from smplx.body_models import create
 
 
 def get_dist(*vs):
@@ -57,7 +58,7 @@ class MeshMeasurements:
     LOWER_BELLY_POINT = 1769
     #FOREHEAD_POINT = 335
     FOREHEAD_POINT = 336
-    NECK_POINT = 3050
+    NECK_POINT = 3839
     PELVIS_POINT = 3145
     RIGHT_BICEP_POINT = 6281
     RIGHT_FOREARM_POINT = 5084
@@ -95,14 +96,22 @@ class MeshMeasurements:
     FOREARM_INDICES = (5132, 5133, 5036, 5035, 5192, 5097, 5096, 5113, 5112, 5168, 5171, 5207, 5087, 5083, 5082, 5163)
     BICEP_INDICES = (6282, 4881, 4878, 6281, 6280, 4882, 4883, 4854, 4853, 4278, 4279, 4886, 4744, 4741, 5365, 5010, 5011, 6283)
     HIP_INDICES = (1807, 864, 863, 1205, 1204, 1450, 1799, 868, 867, 937, 816, 815, 1789, 1786, 3111, 3113, 3112, 842, 841, 3158)   # X2
-
+    NECK_INDICES = (3057, 451, 214, 217, 151, 152, 297, 207, 208, 210, 211, 256, 424, 3164)     # X2
 
     # For proposer labels.
     overall_height = None
+    
+    # Allowable errors.
+    AEs = np.array([4.0, nan, nan, nan, 6.0, 5.0, 12.0, nan, 6.0, nan, 5.0, 12.0, nan, nan, 4.0, 
+           nan, 6.0, nan, nan, 8.0, 15.0, 6.0, nan, 12.0, nan, 5.0]) * 0.001
 
     @staticmethod
-    def __init_from_shape__(gender, shape, mesh_size=None, keep_mesh=False):
-        model = create_model(gender)
+    def __init_from_params__(gender, shape, mesh_size=None, keep_mesh=False, pose=None):
+        if pose is None:
+            model = create_model(gender)
+        else:
+            model = create_model(gender, pose)
+            
         model_output = set_shape(model, shape)
         verts = model_output.vertices.detach().cpu().numpy().squeeze()
         faces = model.faces.squeeze()
@@ -247,10 +256,12 @@ class MeshMeasurements:
 
     @property
     def waist_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.LOWER_BELLY_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.LOWER_BELLY_POINT])
+        indexes = self.WAIST_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
@@ -263,50 +274,62 @@ class MeshMeasurements:
 
     @property
     def neck_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.NECK_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.NECK_POINT])
+        indexes = self.NECK_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
     def chest_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.LEFT_CHEST])
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.LEFT_CHEST])
+        indexes = self.CHEST_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
 
     @property
-    def pelvis_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.PELVIS_POINT])
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+    def hip_circumference(self):
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.PELVIS_POINT])
+        indexes = self.HIP_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
 
     @property
     def wrist_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            VERT_NORMAL,
-            self.verts[self.LEFT_WRIST])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    VERT_NORMAL,
+        #    self.verts[self.LEFT_WRIST])
+        indexes = self.WRIST_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
     def bicep_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            VERT_NORMAL,
-            self.verts[self.RIGHT_BICEP_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    VERT_NORMAL,
+        #    self.verts[self.RIGHT_BICEP_POINT])
+        indexes = self.BICEP_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
     def forearm_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            VERT_NORMAL,
-            self.verts[self.RIGHT_FOREARM_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    VERT_NORMAL,
+        #    self.verts[self.RIGHT_FOREARM_POINT])
+        indexes = self.FOREARM_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
@@ -355,7 +378,7 @@ class MeshMeasurements:
             'shoulder_to_crotch',
             'chest_circumference',
             'waist_circumference',
-            'pelvis_circumference',
+            'hip_circumference',
             'wrist_circumference',
             'bicep_circumference',
             'forearm_circumference',
@@ -616,10 +639,13 @@ class Regressor():
 def prepare_in(verts, faces, volume, gender, args):
     mesh_measurements = MeshMeasurements(verts, faces, keep_mesh=True)
 
-    height = mesh_measurements.overall_height + np.random.normal(0, .01)
-    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 1.5)
+    #height = mesh_measurements.overall_height + np.random.normal(0, args.height_noise)
+    #weight = (1000 * mesh_measurements.weight) + np.random.normal(0, args.weight_noise)
+    height = mesh_measurements.overall_height
+    weight = 1000 * mesh_measurements.weight
 
-    return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.allmeasurements
+    #return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.allmeasurements
+    return np.array([height, weight]), mesh_measurements.allmeasurements
 
 
 def load(args):
@@ -655,6 +681,22 @@ def load(args):
     else:
         samples_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
+
+    samples_in[:, 0] += np.random.normal(0, args.height_noise, samples_in.shape[0])
+    samples_in[:, 1] += np.random.normal(0, args.weight_noise, samples_in.shape[0])
+    #np.random.seed(27)
+    samples_in[:, 1] += np.random.normal(0, args.weight_noise2, samples_in.shape[0])
+
+    if args.num_interaction > 0:
+        interaction_terms = np.array([
+            samples_in[:, 1] / samples_in[:, 0] ** 2,       # w / h ** 2
+            samples_in[:, 1] * samples_in[:, 0],            # w * h
+            samples_in[:, 1] ** 2,                          # w ** 2
+            samples_in[:, 0] ** 2,                          # h ** 2
+            samples_in[:, 1] ** 2 * samples_in[:, 0] ** 2   # w ** 2 * h ** 2
+        ][:args.num_interaction]).swapaxes(0, 1)
+
+        samples_in = np.concatenate([samples_in, interaction_terms], axis=1)
 
     return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
 

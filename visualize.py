@@ -194,20 +194,25 @@ def visualize_noisy_measurements(label, noise_stds):
 
 
 def visualize_measurement_distribution(gender, X, all_measurements):
-    fig_name = f'measurement_distribution_{gender}.png'
+    fig_name = f'bodyfit_distributions_{gender}.png'
     fig_path = os.path.join('vis/', fig_name)
 
     ap_measurements = all_measurements[:, all_to_ap_measurement_idxs]
 
-    labels = ['Hg', 'Wg'] + MeshMeasurements.letterlabels()
-    data = np.concatenate([X, ap_measurements], axis=1).swapaxes(0, 1) * 100.
-    data[1, :] /= 100.
+    labels = ['Height', 'Weight'] + MeshMeasurements.letterlabels()
+    data = np.concatenate([X, ap_measurements], axis=1).swapaxes(0, 1)
+    data[2:] *= 100.
+    data[0, :] *= 100.
     measure_dict = dict(zip(
         labels, 
         data)
     )
     df = pd.DataFrame(measure_dict)
     df.boxplot(grid=False, figsize=(12, 5), rot=0)
+    
+    plt.title('BODY-fit+W Males')
+    plt.xlabel('Measurement Label')
+    plt.ylabel('cm / kg')
 
     plt.savefig(fig_path)
 

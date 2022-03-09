@@ -129,7 +129,8 @@ class MeshViewer(object):
     def render(self, render_wireframe=None, RGBA=False):
         from pyrender.constants import RenderFlags
 
-        flags = RenderFlags.SHADOWS_DIRECTIONAL
+        #flags = RenderFlags.SHADOWS_DIRECTIONAL
+        flags = RenderFlags.NONE
         if RGBA: flags |=  RenderFlags.RGBA
         if render_wireframe is not None and render_wireframe==True:
             flags |= RenderFlags.ALL_WIREFRAME

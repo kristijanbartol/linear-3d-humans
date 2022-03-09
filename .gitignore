@@ -119,6 +119,8 @@ vis/
 vposer*/
 results/
 anthropometry_venv/
+plots/
+*venv/
 
 *.npy
 *.zip

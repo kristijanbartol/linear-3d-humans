@@ -87,12 +87,13 @@ def set_shape(model, shape_coefs):
     return model(betas=shape_coefs, return_verts=True)
 
 
-def create_model(gender, num_coefs=10, model_type='smpl'):
+def create_model(gender, body_pose=None, num_coefs=10, model_type='smpl'):
     if model_type == 'star':
         return smplx.star.STAR()
     else:
         if model_type == 'smpl':
-            body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
+            if body_pose is None:
+                body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
         elif model_type == 'smplx':
             body_pose = torch.zeros((1, SMPLX_NUM_KPTS * 3))
         return smplx.create(MODELS_DIR, model_type=model_type,
@@ -211,6 +212,36 @@ def main(dataset_name, num_neutral=0, num_male=0,
             num_female, 
             regenerate
     )
+    
+    
+def generate_extremes(gender='male', model_type='smpl'):
+    model = create_model(gender, model_type=model_type)
+    coefs = [3., 3., 3., 3., 3., 3., 3., 3., 3., 3.]
+    
+    for cidx, coef in enumerate(coefs):
+        for sign in [-1, 1]:
+            shape_coefs = torch.tensor([0.] * 10).unsqueeze(0)
+            shape_coefs[:, cidx] = sign * coef
+            output = set_shape(model, shape_coefs)
+            
+            vertices = output.vertices.detach().cpu().numpy().squeeze()
+            faces = model.faces.squeeze()
+            body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+                vertex_colors=np.tile(colors['darkergray'], (6890, 1)))
+            
+            imw, imh = 500, 500
+            mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
+            mv.set_background_color(colors['white'])
+            
+            apply_mesh_tranfsormations_([body_mesh],
+                                    trimesh.transformations.rotation_matrix(
+                                        np.radians(-80), (0, 1, 0)))
+            mv.set_meshes([body_mesh], group_name='static')
+            img = mv.render()
+
+            rgb = Image.fromarray(img, 'RGB')
+            rgb_path = os.path.join('plots', 'pcas', f'model_{cidx}_{sign}_{gender}.png')
+            rgb.save(rgb_path)
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -252,6 +283,7 @@ def check_args(args):
 
 
 if __name__ == '__main__':
+    '''
     torch.manual_seed(2021)
     np.random.seed(2021)
     parser = init_argparse()
@@ -262,4 +294,6 @@ if __name__ == '__main__':
          num_female=args.female,
          model=args.model,
          regenerate=args.regenerate)
+    '''
+    generate_extremes('female')
 

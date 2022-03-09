@@ -1,4 +1,6 @@
 import argparse
+from copy import deepcopy
+import os
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
@@ -17,6 +19,10 @@ from logs import log, save_results
 from visualize import visualize, visualize_measurement_distribution
 
 
+RESULTS_DIR = './results/'
+all_to_ap_measurement_idxs = [10, 16, 20, 6, 23, 11, 25, 4, 8, 1, 14, 21, 5, 0, 19]
+
+
 def init_argparse():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -26,6 +32,10 @@ def init_argparse():
     parser.add_argument(
         '--dataset_name', type=str, 
         help='dataset name'
+    )
+    parser.add_argument(
+        '--features', type=str, choices=['baseline', 'measurements'],
+        help='input features (for fitting from measurements to PCs)'
     )
     parser.add_argument(
         '--target', type=str, choices=['shape', 'measurements'],
@@ -42,6 +52,9 @@ def init_argparse():
         '--weight_noise', type=float, help='std added to weight GT'
     )
     parser.add_argument(
+        '--weight_noise2', type=float, help='std added to weight GT'
+    )
+    parser.add_argument(
         '--num_interaction', type=int, help='# interaction terms added to linear model'
     )
 
@@ -49,6 +62,7 @@ def init_argparse():
 
 
 if __name__ == '__main__':
+    np.random.seed(2021)
     parser = init_argparse()
     args = parser.parse_args()
 
@@ -58,31 +72,19 @@ if __name__ == '__main__':
     #else:
     #X, y, measurements, genders = load_from_shapes(args)
     X, y, measurements, genders = load(args)
+    all_inputs = np.concatenate([X, measurements], axis=1)
+    #X, y, measurements, genders = load_from_shapes(args)
     print('Train/test splitting...')
 
-    np.save(f'{args.gender}_measurements.npy', np.concatenate([X, measurements], axis=1))
+    np.save(f'{args.gender}_measurements_{args.weight_noise}_{args.weight_noise2}_{args.height_noise}.npy', np.concatenate([X, measurements], axis=1))
     np.save('measurement_names.npy', np.array(['height', 'weight'] + MeshMeasurements.alllabels()))
 
 
     indices = np.arange(X.shape[0])
-    
-    '''
-    merged = np.concatenate([X, measurements], axis=1)
-    #merged = PCA(n_components=10).fit_transform(merged)
-    kmeans = KMeans(n_clusters=194, random_state=10).fit(y)
-    labels = kmeans.labels_
-    train_indices, test_indices = indices[labels < 150], indices[labels >= 150]
 
-    all_data = np.concatenate([labels.reshape(-1, 1), merged], axis=1)
-    df = pd.DataFrame(all_data)
-    row_names = ['cluster', 'height', 'weight'] + MeshMeasurements.alllabels()
-    #df.to_excel('kmeans.xlsx', index=True, header=row_names)
 
-    X_train, X_test = X[train_indices], X[test_indices]
-    y_train, y_test = y[train_indices], y[test_indices]
-    meas_train, meas_test = measurements[train_indices], measurements[test_indices]
-    gender_train, gender_test = genders[train_indices], genders[test_indices]
-    '''  
+    assert(args.features == 'baseline' or (args.features == 'measurements' and args.target == 'shape'))
+    X = deepcopy(X) if args.features == 'baseline' else all_inputs
 
 
     X_train, X_test, y_train, y_test, meas_train, meas_test, _, gender_test, train_indices, test_indices = train_test_split(
@@ -92,21 +94,27 @@ if __name__ == '__main__':
     model = LinearRegression()
     #model = Models.tree()
 
-    # Cross-validation
-    #folds = KFold(n_splits=5, shuffle = True, random_state = 100)
-    #scores = cross_val_score(model, X, measurements, scoring='neg_mean_absolute_error', cv=10)
-    #scores = cross_val_score(model, X, measurements, scoring='neg_mean_absolute_error', cv=folds)
-    #print(-scores * 1000)
-    #print((-scores * 1000).mean())
-
 
     print(f'Target variable: {args.target}...')
     reg = model.fit(X_train, y_train if args.target == 'shape' else meas_train)
     print('Predicting...')
     y_predict = reg.predict(X_test)
+    
+    
+    importances = Models.feature_importances(model)
+    intercepts = Models.intercepts(model)
+    
+    if args.target == 'measurements':
+        importances = importances[all_to_ap_measurement_idxs]
+        intercepts = intercepts[all_to_ap_measurement_idxs]
+    
+    all_coefs = np.concatenate([importances, intercepts.reshape((-1, 1))], axis=1)
+    np.save(os.path.join(RESULTS_DIR, f'{args.gender}_meas_coefs.npy'), all_coefs)
+    
+    
     print('Evaluating...')
     y_gt = y_test if args.target == 'shape' else meas_test
-    params_errors, measurement_errors, s2s_dists = evaluate(y_predict, y_gt, gender_test, args.target)
+    params_errors, maes, s2s_dists, mres, allowable_ratios = evaluate(y_predict, y_gt, gender_test, args.target)
 
 
 
@@ -116,10 +124,10 @@ if __name__ == '__main__':
 
     # NOTE: Need to predict shape parameters here.
     print('Saving results...')
-    save_results(genders[0], y_predict, measurement_errors, s2s_dists, test_indices, args)
+    save_results(genders[0], y_predict, maes, s2s_dists, test_indices, args)
 
     print('Logging to stdout...')
-    log(model, args, params_errors, measurement_errors, s2s_dists)
+    log(model, args, params_errors, maes, s2s_dists, mres, allowable_ratios)
     
     print('Visualizing...')
     visualize_measurement_distribution(args.gender, X, measurements)

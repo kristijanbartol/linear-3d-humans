@@ -7,20 +7,24 @@ from models import Models
 
 
 RESULTS_DIR = './results/'
+all_to_ap_measurement_idxs = [10, 16, 20, 6, 23, 11, 25, 4, 8, 1, 14, 21, 5, 0, 19]
 
 
-def log(model, args, params_errors, measurement_errors, s2s_dists):
+def log(model, args, params_errors, maes, s2s_dists, mres, allowable_ratios):
     params_means = np.mean(params_errors, axis=0)
-    measurement_means = np.mean(measurement_errors, axis=0) * 1000.
+    measurement_means = np.mean(maes, axis=0) * 1000.
     s2s_means = np.mean(s2s_dists, axis=0) * 1000.
 
     params_stds = np.std(params_errors, axis=0)
-    measurement_stds = np.std(measurement_errors, axis=0) * 1000.
+    measurement_stds = np.std(maes, axis=0) * 1000.
     s2s_stds = np.std(s2s_dists, axis=0) * 1000.
 
     params_maxs = np.max(params_errors, axis=0)
-    measurement_maxs = np.max(measurement_errors, axis=0) * 1000.
+    measurement_maxs = np.max(maes, axis=0) * 1000.
     #s2s_maxs = np.max(s2s_dists, axis=0)
+    
+    mres_means = mres.mean(axis=0) * 100.
+    allowable_ratios *= 100.
 
     print('\nPARAMS\n========')
     for param_idx in range(params_means.shape[0]):
@@ -28,14 +32,19 @@ def log(model, args, params_errors, measurement_errors, s2s_dists):
 
     print('\nMEASURES\n=========')
     measure_labels = MeshMeasurements.alllabels()
-    all_to_ap_measurement_idxs = [10, 15, 20, 6, 23, 18, 25, 4, 8, 1, 13, 21, 5, 0, 19]
+    
+    #all_to_ap_measurement_idxs = list(range(len(MeshMeasurements.alllabels())))
     ap_labels = np.array(measure_labels)[all_to_ap_measurement_idxs]
     ap_measurement_means = measurement_means[all_to_ap_measurement_idxs]
     ap_measurement_stds = measurement_stds[all_to_ap_measurement_idxs]
     ap_measurement_maxs = measurement_maxs[all_to_ap_measurement_idxs]
+    ap_mres_means = mres_means[all_to_ap_measurement_idxs]
+    ap_allowable_ratios = allowable_ratios[all_to_ap_measurement_idxs]
     
     for meas_idx in range(ap_measurement_means.shape[0]):
-        print(f'{ap_labels[meas_idx]}: {(ap_measurement_means[meas_idx]):.6f}mm, {(ap_measurement_stds[meas_idx]):.6f}mm, {(ap_measurement_maxs[meas_idx]):.6f}mm')
+        print(f'{(ap_labels[meas_idx])}: {(ap_measurement_means[meas_idx]):.6f}mm, '
+              f'{(ap_measurement_stds[meas_idx]):.6f}mm, {(ap_measurement_maxs[meas_idx]):.6f}mm, '
+              f'{(ap_mres_means[meas_idx]):.6f}%, {(ap_allowable_ratios[meas_idx]):.6f}%')
     print(f'\nMean: {ap_measurement_means.mean():.6f}, Std: {ap_measurement_stds.mean():.6f}')
     print(f'Mean S2S: {np.mean(s2s_means)}, Std S2S: {np.mean(s2s_stds)}')
 
