@@ -26,6 +26,11 @@ The code is a supplementary for our journal paper. Please cite it in your resear
 }
 ```
 
+## Updates / Work-In-Progress
+
+[ ] Clean the data
+[ ] Finish the documentation
+[ ] Provide inference scripts and instructions
 
 ## License
 
