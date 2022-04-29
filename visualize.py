@@ -13,7 +13,7 @@ from human_body_prior.tools.omni_tools import copy2cpu as c2c
 from human_body_prior.tools.omni_tools import colors
 from mesh_viewer import MeshViewer
 
-from load import MeshMeasurements, Regressor
+from load import MeshMeasurements
 from models import Models
 from generate import create_model, set_shape
 

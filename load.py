@@ -22,10 +22,6 @@ def get_height(v1, v2):
     return np.abs((v1 - v2))[1]
 
 
-HORIZ_NORMAL = np.array([0, 1, 0], dtype=np.float32)
-VERT_NORMAL = np.array([1, 0, 0], dtype=np.float32)
-
-
 class MeshMeasurements:
 
     # Mesh landmark indexes.
@@ -84,7 +80,6 @@ class MeshMeasurements:
     ARM_LENGTH = (LEFT_SHOULDER, LEFT_WRIST)
     FOREARM_LENGTH = (LEFT_INNER_ELBOW, LEFT_WRIST)
     INSIDE_LEG_LENGTH = (LOW_LEFT_HIP, LEFT_ANKLE)
-
 
     # Segmented circumference indices.
     WAIST_INDICES = (3500, 1336, 917, 916, 919, 918, 665, 662, 657, 654, 631, 632, 720, 799, 796, 890, 889, 3124, 3018, \
@@ -659,7 +654,7 @@ def load(args):
         data_dict[fname.split('.')[0]] = np.load(os.path.join(data_dir, fname))
 
     if not os.path.exists(regressor_path):
-        samples_in = []
+        weights_in = []
         measurements_all = []
 
         for sample_idx in range(data_dict['genders'].shape[0]):
@@ -670,16 +665,16 @@ def load(args):
 
             sample_in, sample_measurements = prepare_in(verts, faces, volume, gender, args)
 
-            samples_in.append(sample_in)
-            measurements_all.append(sample_measurements)
+            weights_in.append(mesh_measurements.weight)
+            measurements_all.append(mesh_measurements.apmeasurements)
 
-        samples_in = np.array(samples_in)
+        weights_in = np.array(weights_in).reshape((-1, 1))
         measurements_all = np.array(measurements_all)
 
-        np.save(regressor_path, samples_in)
+        np.save(os.path.join(data_dir, 'weights.npy'), weights_in)
         np.save(os.path.join(data_dir, 'measurements.npy'), measurements_all)
     else:
-        samples_in = np.load(regressor_path)
+        weights_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
     samples_in[:, 0] += np.random.normal(0, args.height_noise, samples_in.shape[0])
