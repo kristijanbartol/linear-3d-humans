@@ -125,6 +125,4 @@ plots/
 *.npy
 *.zip
 
-*.png
-
 git_token
