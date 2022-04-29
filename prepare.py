@@ -6,6 +6,7 @@ from pathlib import Path
 import trimesh
 import pickle
 import numpy as np
+import pyrender
 
 from human_body_prior.tools.omni_tools import colors
 
@@ -13,19 +14,63 @@ from generate import GENDER_TO_STR_DICT, SMPL_NUM_KPTS, create_model, set_shape,
 from utils import img_to_silhouette
 
 
+
+def prepare_caesar():
+    data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/caesar'
+    meshes_dir = os.path.join(data_dir, 'caesar-fitted-meshes')
+    save_dir_template = os.path.join('data', 'caesar', 'prepared', '{}')
+
+    data_dict = {
+        'genders': [],
+        'vertss': [],
+        'faces': [],
+        'volumes': []
+    }
+
+    faces = loadmat(os.path.join(data_dir, 'facesShapeModel.mat'))['faces'] - 1
+
+    #for gender, num_samples in zip(['male', 'female'], [1474, 2675]):
+    for gender, num_samples in zip(['male'], [4308]):
+        for fname in os.listdir(meshes_dir):
+            print(gender, fname)
+            try:
+                data_dict['vertss'].append(loadmat(
+                    os.path.join(meshes_dir, fname))['points'])
+
+                mesh = trimesh.Trimesh(vertices = data_dict['vertss'][-1], faces=faces, process=False)
+                mesh.export(os.path.join(data_dir, 'obj-meshes', fname.split('.')[0] + '.obj'))
+
+                #data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
+                #data_dict['volumes'].append(mesh.volume)
+            except FileNotFoundError as e:
+                print(f'Error with {gender} ({e.filename})')
+
+        '''
+        save_dir = save_dir_template.format(gender)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        for key in data_dict:
+            data_dict[key] = np.array(data_dict[key], dtype=np.float32)
+            np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key])
+            data_dict[key] = []
+        '''
+
+
 def process_openpose(pose_json):
     # TODO: Use confidences (could have ones for GT).
     return np.array(pose_json['people'][0]['pose_keypoints_2d']).reshape([-1, 3])[:, :2]
 
 
-def prepare_caesar():
+def prepare_nomo():
     data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/NOMO'
     est_kptss_dir = os.path.join(data_dir, 'keypoints', '{}', 'front')
     params_dir = os.path.join(data_dir, 'smple_lbfgsb_params', '{}')
     front_silhss_template = os.path.join(data_dir, 'rendered_rgb', '{}', 'front', 'silh')
     side_silhss_template = os.path.join(data_dir, 'rendered_rgb', '{}', 'side', 'silh')
 
-    save_dir_template = os.path.join('data', 'caesar', 'prepared', '{}')
+    meshes_dir = os.path.join(data_dir, 'meshes', '{}', '{:04d}.obj')
+    smpl_fits_dir = os.path.join(data_dir, 'smpl6890v_lbfgsb_fits', '{}', 'mesh_{}_{:04d}.obj')
+
+    save_dir_template = os.path.join('data', 'nomo', 'prepared', '{}')
 
     data_dict = {
         'genders': [],
@@ -43,7 +88,7 @@ def prepare_caesar():
     for gender, num_samples in zip(['male', 'female'], [1474, 2675]):
     #for gender, num_samples in zip(['male'], [1474]):
         for sample_idx in range(num_samples):
-            print(gender, sample_idx)
+            #print(gender, sample_idx)
             try:
                 data_dict['poses'].append(loadmat(
                     os.path.join(params_dir.format(gender), f'{sample_idx:04d}.mat'))['pose'])
@@ -53,11 +98,17 @@ def prepare_caesar():
                 data_dict['genders'].append(GENDER_TO_INT_DICT[gender])
 
                 smpl_model = create_model(gender)
-                smpl_output = set_shape(smpl_model, data_dict['shapes'][-1][0])
+                smpl_output = set_shape(smpl_model, data_dict['shapes'][-1])
                 verts = smpl_output.vertices.detach().cpu().numpy().squeeze()
                 faces = smpl_model.faces.squeeze()
                 body_mesh = trimesh.Trimesh(vertices=verts, faces=faces, 
-                    vertex_colors=np.tile(colors['grey'], (6890, 1)))
+                    vertex_colors=np.tile(colors['grey'], (6890, 1)))   # should also add process=False
+
+                # Write mesh.
+                #pyrender.Mesh.from_trimesh(body_mesh)
+                #body_mesh.export(meshes_dir.format(gender, sample_idx))
+
+                their_mesh = trimesh.load(smpl_fits_dir.format(gender, gender, sample_idx), process=False)
 
                 with open(os.path.join(est_kptss_dir.format(gender), f'{sample_idx:04d}_keypoints.json')) as json_f:
                     data_dict['est_kptss'].append(process_openpose(json.load(json_f)))
@@ -66,9 +117,12 @@ def prepare_caesar():
                     os.path.join(front_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
                 data_dict['side_silhs'].append(img_to_silhouette(imread(
                     os.path.join(side_silhss_template.format(gender), f'{sample_idx:04d}.png'))))
-                data_dict['vertss'].append(verts)
-                data_dict['facess'].append(faces)
-                data_dict['volumes'].append(body_mesh.volume)
+                #data_dict['vertss'].append(verts)
+                data_dict['vertss'].append(their_mesh.vertices)
+                #data_dict['facess'].append(faces)
+                data_dict['facess'].append(their_mesh.faces)
+                #data_dict['volumes'].append(body_mesh.volume)
+                data_dict['volumes'].append(their_mesh.volume)
             except FileNotFoundError as e:
                 print(f'Error with {gender} {sample_idx} ({e.filename})')
 
@@ -136,23 +190,25 @@ def prepare_star():
         'poses': 'pose',
         'shapes': 'shape',
         'vertss': 'verts',
+        'facess': 'faces',
         'volumes': 'volume'
     }
 
     data_dir = os.path.join('data', 'star', 'generated')
     kpts_dir = os.path.join('data', 'star', 'keypoints')  # for est_kptss
-    # TODO: Create directories for both genders.
+    # TODO: Create directories for both genders!!!!!!!!!!!!!!!
     save_dir = os.path.join('data', 'star', 'prepared', 'male')
 
     Path(kpts_dir).mkdir(parents=True, exist_ok=True)
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
     data_dict = {
-        'genders': [],
-        'poses': [],
-        'shapes': [],
-        'vertss': [],
-        'volumes': []
+        'genders': [[], []],
+        'poses': [[], []],
+        'shapes': [[], []],
+        'vertss': [[], []],
+        'facess': [[], []],
+        'volumes': [[], []]
     }
 
     for key in data_dict:
@@ -170,62 +226,29 @@ def prepare_star():
         data_dict[key] = []
 
 
-def prepare_3dpw():
-    data_dir = '/media/kristijan/kristijan-hdd-ex/datasets/3dpw'
-    est_kptss_dir = os.path.join(data_dir, 'keypoints', '{}', 'front')
-    metadata_dir = os.path.join(data_dir, 'sequenceFiles', 'sequenceFiles', 'test')
+# TODO: Should use this for preparing STAR also.
+def prepare_smpl(dataset_name):
+    data_dir = os.path.join('data', dataset_name, 'generated')
+    shapes = [[], []]
 
-    save_dir_template = os.path.join('data', '3dpw', 'prepared', '{}')
+    for gidx, gender in enumerate(['male', 'female']):
+        save_dir = os.path.join('data', dataset_name, 'prepared', gender)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-    data_dict = {
-        'genders': [[], []],
-        'poses': [[], []],
-        'shapes': [[], []],
-        'vertss': [[], []],
-        'facess': [[], []],
-        'volumes': [[], []]
-    }
+        for subj_dirname in [x for x in os.listdir(data_dir) if x.startswith(gender)]:
+            print(subj_dirname)
+            subj_dirpath = os.path.join(data_dir, subj_dirname)
 
-    for fname in os.listdir(metadata_dir):
-        fpath = os.path.join(metadata_dir, fname)
-        with open(fpath, 'rb') as fmeta:
-            data = pickle.load(fmeta, encoding='latin1')
-            
-        for subject_idx in range(len(data['genders'])):
-            shape = data['betas'][subject_idx][:10]
-            #for frame_idx in range(len(data['img_frame_ids'])):
-            for frame_idx in range(100):
-                print(fname, subject_idx, frame_idx)
-                gender = data['genders'][subject_idx]
-                gender_idx = 0 if gender == 'm' else 1
-                data_dict['genders'].append(0 if gender == 'm' else 1)
+            data = np.load(os.path.join(subj_dirpath, f'shape.npy'))
+            shapes[gidx].append(data)
 
-                data_dict['poses'][gender_idx].append(data['poses'][subject_idx][frame_idx])
-                data_dict['shapes'][gender_idx].append(shape)
-
-                smpl_model = create_model(GENDER_TO_STR_DICT[gender_idx])
-                smpl_output = set_shape(smpl_model, shape)
-                verts = smpl_output.vertices.detach().cpu().numpy().squeeze()
-                faces = smpl_model.faces.squeeze()
-                body_mesh = trimesh.Trimesh(vertices=verts, faces=faces, 
-                    vertex_colors=np.tile(colors['grey'], (6890, 1)))
-
-                data_dict['vertss'][gender_idx].append(verts)
-                data_dict['facess'][gender_idx].append(faces)
-                data_dict['volumes'][gender_idx].append(body_mesh.volume)
-
-    for key in data_dict:
-        for gender_idx in range(2):
-            save_dir = save_dir_template.format(GENDER_TO_STR_DICT[gender_idx])
-            Path(save_dir).mkdir(parents=True, exist_ok=True)
-
-            data_dict[key][gender_idx] = np.array(data_dict[key][gender_idx], dtype=np.float32)
-            np.save(os.path.join(save_dir, f'{key}.npy'), data_dict[key][gender_idx])
-        data_dict[key] = []
+        shapes[gidx] = np.array(shapes[gidx], dtype=np.float32)
+        np.save(os.path.join(save_dir, f'shapes.npy'), shapes[gidx])
 
 
 if __name__ == '__main__':
-    #prepare_caesar()
+    prepare_caesar()
+    #prepare_nomo()
     #prepare_gt('star')
     #prepare_star()
-    prepare_3dpw()
+    #prepare_smpl('smpl-uniform-1.5')

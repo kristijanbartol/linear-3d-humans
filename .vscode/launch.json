@@ -12,9 +12,10 @@
             "console": "integratedTerminal",
             // generate.py
             //"args": [
-            //    "--name", "star",
-            //    "--male", "5000",
-            //    "--female", "1000",
+            //    "--name", "smpl-uniform-1.5",
+            //    "--model", "smpl",
+            //    "--male", "10000",
+            //    "--female", "10000",
             //],
 
             // demo.py
@@ -27,16 +28,14 @@
             // train.py
             "args": [
                 "--data_root", "data/",
-                "--dataset_name", "caesar",
-                "--data_type", "est",
-                "--pose_reg_type", "P2",
-                //"--silh_reg_type", "Si4",
-                "--soft_reg_type", "So1",
-                "--target", "measurements",     // do not use fit-to-shape anymore
-                "--model", "linear",
-                "--mode", "train",
-                "--gender", "male",
-                //"--pretrained", "caesar"
+                "--dataset_name", "nomo",
+                "--features", "baseline",
+                "--target", "measurements",
+                "--gender", "female",
+                "--height_noise", "0.01",
+                "--weight_noise", "1.5",
+                "--weight_noise2", "1.5",
+                "--num_interaction", "0"
             ]
         }
     ]

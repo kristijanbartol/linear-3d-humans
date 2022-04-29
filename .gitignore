@@ -117,7 +117,12 @@ human_body_prior/
 data/
 vis/
 vposer*/
+results/
+anthropometry_venv/
+plots/
+*venv/
 
-*.png
+*.npy
+*.zip
 
 git_token

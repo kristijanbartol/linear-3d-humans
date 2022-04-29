@@ -1,23 +1,12 @@
 import os
-import math
+from math import nan
 import numpy as np
 from pyrender.mesh import Mesh
 from sklearn.preprocessing import normalize
 import trimesh
 
-from human_body_prior.tools.omni_tools import colors
-from mesh_viewer import MeshViewer
-from PIL import Image
-
-
-HORIZ_NORMAL = np.array([0, 1, 0], dtype=np.float32)
-VERT_NORMAL = np.array([1, 0, 0], dtype=np.float32)
-
-GENDER_HEIGHT = {
-    0: 1.82,    # male
-    1: 1.68,    # female
-    2: 1.75     # neutral
-}
+from generate import GENDER_TO_INT_DICT, create_model, set_shape
+from smplx.body_models import create
 
 
 def get_dist(*vs):
@@ -63,8 +52,9 @@ class MeshMeasurements:
     LEFT_ANKLE = 3334
 
     LOWER_BELLY_POINT = 1769
-    FOREHEAD_POINT = 335
-    NECK_POINT = 3050
+    #FOREHEAD_POINT = 335
+    FOREHEAD_POINT = 336
+    NECK_POINT = 3839
     PELVIS_POINT = 3145
     RIGHT_BICEP_POINT = 6281
     RIGHT_FOREARM_POINT = 5084
@@ -91,52 +81,71 @@ class MeshMeasurements:
     FOREARM_LENGTH = (LEFT_INNER_ELBOW, LEFT_WRIST)
     INSIDE_LEG_LENGTH = (LOW_LEFT_HIP, LEFT_ANKLE)
 
-    def __init__(self, gender: int, verts, faces, noise_std=1.5):
-        self.gender = gender
+    # Segmented circumference indices.
+    WAIST_INDICES = (3500, 1336, 917, 916, 919, 918, 665, 662, 657, 654, 631, 632, 720, 799, 796, 890, 889, 3124, 3018, \
+        3019, 3502, 6473, 6474, 6545, 6376, 6375, 4284, 4285, 4208, 4120, 4121, 4142, 4143, 4150, 4151, 4406, 4405, \
+        4403, 4402, 4812)
+    CHEST_INDICES = (3076, 2870, 1254, 1255, 1349, 1351, 3033, 3030, 3037, 3034, 3039, 611, 2868, 2864, 2866, 1760, 1419, 741, \
+        738, 759, 2957, 2907, 1435, 1436, 1437, 1252, 1235, 749, 752, 3015)     # X2
+    WRIST_INDICES = (5573, 5570, 5572, 5564, 5563, 5565, 5566, 5609, 5608, 5568, 5567, 5668, 5669, 5702, 5696, 5691)
+    FOREARM_INDICES = (5132, 5133, 5036, 5035, 5192, 5097, 5096, 5113, 5112, 5168, 5171, 5207, 5087, 5083, 5082, 5163)
+    BICEP_INDICES = (6282, 4881, 4878, 6281, 6280, 4882, 4883, 4854, 4853, 4278, 4279, 4886, 4744, 4741, 5365, 5010, 5011, 6283)
+    HIP_INDICES = (1807, 864, 863, 1205, 1204, 1450, 1799, 868, 867, 937, 816, 815, 1789, 1786, 3111, 3113, 3112, 842, 841, 3158)   # X2
+    NECK_INDICES = (3057, 451, 214, 217, 151, 152, 297, 207, 208, 210, 211, 256, 424, 3164)     # X2
+
+    # For proposer labels.
+    overall_height = None
+    
+    # Allowable errors.
+    AEs = np.array([4.0, nan, nan, nan, 6.0, 5.0, 12.0, nan, 6.0, nan, 5.0, 12.0, nan, nan, 4.0, 
+           nan, 6.0, nan, nan, 8.0, 15.0, 6.0, nan, 12.0, nan, 5.0]) * 0.001
+
+    @staticmethod
+    def __init_from_params__(gender, shape, mesh_size=None, keep_mesh=False, pose=None):
+        if pose is None:
+            model = create_model(gender)
+        else:
+            model = create_model(gender, pose)
+            
+        model_output = set_shape(model, shape)
+        verts = model_output.vertices.detach().cpu().numpy().squeeze()
+        faces = model.faces.squeeze()
+
+        return MeshMeasurements(verts, faces, mesh_size, keep_mesh)
+
+    def __init__(self, verts, faces, mesh_size=None, keep_mesh=False):
         self.verts = verts
         self.faces = faces
 
-        '''
-        imw, imh = 1600, 1600
-        mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
-        mv.set_background_color(colors['black'])
-
-        pre_scale_mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces,
-            vertex_colors=np.tile(colors['grey'], (6890, 1)))
-
-        mv.set_meshes([pre_scale_mesh], group_name='static')
-        img = mv.render()
-
-        rgb = Image.fromarray(img, 'RGB')
-        rgb.save('pre-scale.png')
-        '''
-
-        #self.verts = self.__scale_vertices(verts)
-        self.verts *= (GENDER_HEIGHT[self.gender] / self.overall_height)
-
         self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
 
+        self.weight = self.mesh.volume
 
-        '''
-        mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
-        mv.set_background_color(colors['black'])
+        self.overall_height = self._get_overall_height()
 
-        post_scale_mesh = trimesh.Trimesh(vertices=self.verts, faces=faces, 
-            vertex_colors=np.tile(colors['grey'], (6890, 1)))
+        if mesh_size is not None:
+            self._scale_mesh(mesh_size)
 
-        mv.set_meshes([post_scale_mesh], group_name='static')
-        img = mv.render()
+        self.allmeasurements = self._get_all_measurements()
+        #self.apmeasurements = self._get_ap_measurements()
 
-        rgb = Image.fromarray(img, 'RGB')
-        rgb.save('post-scale.png')
-        '''
+        if not keep_mesh:
+            self.verts = None
+            self.faces = None
+            self.mesh = None
 
+    def flush(self):
+        self.verts = None
+        self.faces = None
+        self.mesh = None
 
-        self.volume = self.mesh.volume
-        self.weight = (1000 * self.volume) + np.random.normal(0, noise_std)
+    def _scale_mesh(self, mesh_size):
+        self.verts *= (mesh_size / self.overall_height)
+        self.overall_height = self._get_overall_height()
+        self.mesh = trimesh.Trimesh(vertices=self.verts, faces=self.faces)
 
-    @property
-    def overall_height(self):
+    # Use this to obtain overall height, but use overall_height property on the outside.
+    def _get_overall_height(self):
         return get_height(
             self.verts[self.OVERALL_HEIGHT[0]], 
             self.verts[self.OVERALL_HEIGHT[1]]
@@ -242,10 +251,12 @@ class MeshMeasurements:
 
     @property
     def waist_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.LOWER_BELLY_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.LOWER_BELLY_POINT])
+        indexes = self.WAIST_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
@@ -258,50 +269,62 @@ class MeshMeasurements:
 
     @property
     def neck_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.NECK_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.NECK_POINT])
+        indexes = self.NECK_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
     def chest_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.LEFT_CHEST])
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.LEFT_CHEST])
+        indexes = self.CHEST_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
 
     @property
-    def pelvis_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            HORIZ_NORMAL,
-            self.verts[self.PELVIS_POINT])
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+    def hip_circumference(self):
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    HORIZ_NORMAL,
+        #    self.verts[self.PELVIS_POINT])
+        indexes = self.HIP_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
 
     @property
     def wrist_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            VERT_NORMAL,
-            self.verts[self.LEFT_WRIST])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    VERT_NORMAL,
+        #    self.verts[self.LEFT_WRIST])
+        indexes = self.WRIST_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
     def bicep_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            VERT_NORMAL,
-            self.verts[self.RIGHT_BICEP_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    VERT_NORMAL,
+        #    self.verts[self.RIGHT_BICEP_POINT])
+        indexes = self.BICEP_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
     def forearm_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
-            self.mesh,
-            VERT_NORMAL,
-            self.verts[self.RIGHT_FOREARM_POINT])
+        #line_segments = trimesh.intersections.mesh_plane(
+        #    self.mesh,
+        #    VERT_NORMAL,
+        #    self.verts[self.RIGHT_FOREARM_POINT])
+        indexes = self.FOREARM_INDICES
+        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
         return sum([get_dist(x[0], x[1]) for x in line_segments])
 
     @property
@@ -328,9 +351,11 @@ class MeshMeasurements:
             self.verts[self.RIGHT_ANKLE_POINT])
         return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
 
-    @property
-    def allmeasurements(self):
+    def _get_all_measurements(self):
         return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])
+
+    def _get_ap_measurements(self):
+        return np.array([getattr(self, x) for x in MeshMeasurements.aplabels()])
 
     @property
     def apmeasurements(self):
@@ -348,7 +373,7 @@ class MeshMeasurements:
             'shoulder_to_crotch',
             'chest_circumference',
             'waist_circumference',
-            'pelvis_circumference',
+            'hip_circumference',
             'wrist_circumference',
             'bicep_circumference',
             'forearm_circumference',
@@ -360,11 +385,269 @@ class MeshMeasurements:
             'shoulder_breadth'
         ]
 
+    @staticmethod
+    def letterlabels():
+        return [
+            'A',
+            'B',
+            'C',
+            'D',
+            'E',
+            'F',
+            'G',
+            'H',
+            'I',
+            'J',
+            'K',
+            'L',
+            'M',
+            'N',
+            'O'
+        ]
+
+
+class SoftFeatures():
+
+    def __init__(self, gender, weight):
+        self.gender = gender
+        self.weight = weight
+
+
+class MeshJointIndexSet():
+
+    HEAD = 15
+    LHEEL = 62
+    LMIDDLE = 68    # not available in (basic) OpenPose set
+    RMIDDLE = 73   # not available in (basic) OpenPose set
+    PELVIS = 9          # SPINE3 (nipple height)
+    LHIP = 1
+    RHIP = 2
+    LWRIST = 20
+    LSHOULDER = 16
+
+    # Joint-based measurement indexes.
+    OVERALL_HEIGHT = [HEAD, LHEEL]
+    ARM_SPAN_FINGERS = [LMIDDLE, RMIDDLE]
+    INSEAM_HEIGHT = [PELVIS, LHEEL]
+    HIPS_WIDTH = [LHIP, RHIP]
+    ARM_LENGTH = [LWRIST, LSHOULDER]
+
+
+class OpenPoseJointIndexSet():
+
+    HEAD = 0    # NOSE
+    NECK = 1
+    RSHOULDER = 2
+    RELBOW = 3
+    RWRIST = 4
+    LSHOULDER = 5
+    LELBOW = 6
+    LWRIST = 7
+    PELVIS = 8  # MIDHIP
+    RHIP = 9
+    RKNEE = 10
+    RANKLE = 11
+    LHIP = 12
+    LKNEE = 13
+    LANKLE = 14
+    REYE = 15
+    LEYE = 16
+    REAR = 17
+    LEAR = 18
+    LBIGTOE = 19
+    LSMALLTOE = 20
+    LHEEL = 21
+    RBIGTOE = 22
+    RSMALLTOE = 23
+    RHEEL = 24
+    BACKGROUND = 25
+
+    # Joint-based measurement indexes.
+    OVERALL_HEIGHT = [HEAD, LHEEL]
+    ARM_SPAN_FINGERS = [LWRIST, LELBOW, LSHOULDER, RSHOULDER, RELBOW, RWRIST]
+    INSEAM_HEIGHT = [PELVIS, LHEEL]
+    HIPS_WIDTH = [LHIP, RHIP]
+    ARM_LENGTH = [LWRIST, LELBOW, LSHOULDER]
+
+
+class PoseFeatures():
+
+    def __init__(self, joints, index_set, overall_height=None):
+        self.joints = joints
+        self.index_set = index_set
+        self.overall_height_ = overall_height
+
+    @property
+    def overall_height(self):
+        if self.overall_height_ is not None:
+            return self.overall_height_
+        else:
+            return get_height(
+                self.joints[self.index_set.OVERALL_HEIGHT[0]], 
+                self.joints[self.index_set.OVERALL_HEIGHT[1]]
+            )
+
+    @property
+    def arm_span_fingers(self):
+        return get_dist(*[self.joints[x] for x in self.index_set.ARM_SPAN_FINGERS])
+
+    @property
+    def inseam_height(self):
+        return get_height(
+            self.joints[self.index_set.INSEAM_HEIGHT[0]], 
+            self.joints[self.index_set.INSEAM_HEIGHT[1]]
+        )
+
+    @property
+    def hips_width(self):
+        return get_dist(
+            self.joints[self.index_set.HIPS_WIDTH[0]], 
+            self.joints[self.index_set.HIPS_WIDTH[1]]
+        )
+
+    @property
+    def arm_length(self):
+        return get_dist(*[self.joints[x] for x in self.index_set.ARM_LENGTH])
+
+
+class SilhouetteFeatures():
+
+    class __BoundingBox():
+
+        def __init__(self, up, down, left, right):
+            self.up = up
+            self.down = down
+            self.left = left
+            self.right = right
+
+    def __init__(self, silhouettes):
+        self.silhouettes = silhouettes
+        if silhouettes is not None:
+            self.bounding_boxes = self.__compute_bounding_boxes()
+
+    def __compute_bounding_boxes(self):
+        bounding_boxes = []
+        for sidx in range(self.silhouettes.shape[0]):
+            up, down, left, right = None, None, None, None
+            for row in range(self.silhouettes[sidx].shape[0]):
+                if self.silhouettes[sidx][row].sum() != 0:
+                    up = row
+                    break
+            for row in range(self.silhouettes[sidx].shape[0] - 1, 0, -1):
+                if self.silhouettes[sidx][row].sum() != 0:
+                    down = row
+                    break
+            for column in range(self.silhouettes[sidx].shape[1]):
+                if self.silhouettes[sidx, :, column].sum() != 0:
+                    left = column
+                    break
+            for column in range(self.silhouettes[sidx].shape[1] - 1, 0, -1):
+                if self.silhouettes[sidx, :, column].sum() != 0:
+                    right = column
+                    break
+            bounding_boxes.append(self.__BoundingBox(up, down, left, right))
+        return bounding_boxes
+
+    @property
+    def waist_width(self):
+        front_silhouette = self.silhouettes[0]
+        bbox = self.bounding_boxes[0]
+
+        row_idx = int(bbox.up + 0.4 * (bbox.down - bbox.up))
+        return front_silhouette[row_idx].sum()
+
+    @property
+    def waist_depth(self):      # NOTE: Only this is currently using side silhouette!
+        side_silhouette = self.silhouettes[1]
+        bbox = self.bounding_boxes[1]
+
+        row_idx = int(bbox.up + 0.406 * (bbox.down - bbox.up))
+        return side_silhouette[row_idx].sum()
+
+    @property
+    def thigh_width(self):
+        front_silhouette = self.silhouettes[0]
+        bbox = self.bounding_boxes[0]
+
+        row_idx = int(bbox.up + 0.564 * (bbox.down - bbox.up))
+        return front_silhouette[row_idx].sum() / 2.
+
+    @property
+    def biceps_width(self):
+        front_silhouette = self.silhouettes[0]
+        bbox = self.bounding_boxes[0]
+
+        column_idx = int(bbox.left + 0.332 * (bbox.right - bbox.left))
+        return front_silhouette[:, column_idx].sum()
+
+
+class Regressor():
+
+    P2 = ['overall_height']
+    P4 = P2 + ['arm_span_fingers', 'inseam_height']
+    P5 = P4 + ['hips_width']
+    P6 = P5 + ['arm_length']
+
+    Si4 = [
+        'waist_width',
+        'waist_depth',
+        'thigh_width',
+        'biceps_width'
+    ]
+
+    So1 = ['weight']
+
+    def __init__(self, 
+            pose_reg_type: str, 
+            silh_reg_type: str, 
+            soft_reg_type: str,
+            pose_features: PoseFeatures, 
+            silhouette_features: SilhouetteFeatures, 
+            soft_features: SoftFeatures):
+        self.pose_reg_type = pose_reg_type
+        self.silh_reg_type = silh_reg_type
+        self.soft_reg_type = soft_reg_type
+        self.pose_features = pose_features
+        self.silhouette_features = silhouette_features
+        self.soft_features = soft_features
+
+    @property
+    def _labels(self):
+        pose_labels = getattr(Regressor, self.pose_reg_type) if self.pose_reg_type is not None else []
+        silh_labels = getattr(Regressor, self.silh_reg_type) if self.silh_reg_type is not None else []
+        soft_labels = getattr(Regressor, self.soft_reg_type) if self.soft_reg_type is not None else []
+        return pose_labels, silh_labels, soft_labels
+
+    def get_data(self):
+        pose_labels, silh_labels, soft_labels = self._labels
+        pose_data = [getattr(self.pose_features, x) for x in pose_labels]
+        silh_data = [getattr(self.silhouette_features, x) for x in silh_labels]
+        soft_data = [getattr(self.soft_features, x) for x in soft_labels]
+
+        return np.array(pose_data + silh_data + soft_data, dtype=np.float32)
+
+    @staticmethod
+    def get_labels(args):
+        return ['height', 'weight']
+
+
+def prepare_in(verts, faces, volume, gender, args):
+    mesh_measurements = MeshMeasurements(verts, faces, keep_mesh=True)
+
+    #height = mesh_measurements.overall_height + np.random.normal(0, args.height_noise)
+    #weight = (1000 * mesh_measurements.weight) + np.random.normal(0, args.weight_noise)
+    height = mesh_measurements.overall_height
+    weight = 1000 * mesh_measurements.weight
+
+    #return np.array([height, weight, weight / height ** 2, weight * height, weight ** 2, height ** 2, weight ** 2 * height ** 2]), mesh_measurements.allmeasurements
+    return np.array([height, weight]), mesh_measurements.allmeasurements
+
 
 def load(args):
-    # TODO: Use both data, not only male data.
-    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')
-    regressor_path = os.path.join(data_dir, 'weights.npy')
+    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', args.gender)
+
+    regressor_name = 'inputs.npy'
+    regressor_path = os.path.join(data_dir, regressor_name)
 
     data_dict = {}
     for fname in os.listdir(data_dir):
@@ -377,9 +660,10 @@ def load(args):
         for sample_idx in range(data_dict['genders'].shape[0]):
             verts = data_dict['vertss'][sample_idx]
             faces = data_dict['facess'][sample_idx]
+            volume = data_dict['volumes'][sample_idx]
             gender = data_dict['genders'][sample_idx]
 
-            mesh_measurements = MeshMeasurements(gender, verts, faces, noise_std=2.)
+            sample_in, sample_measurements = prepare_in(verts, faces, volume, gender, args)
 
             weights_in.append(mesh_measurements.weight)
             measurements_all.append(mesh_measurements.apmeasurements)
@@ -393,41 +677,55 @@ def load(args):
         weights_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
-    shapes = data_dict['shapes'][:, 0] if len(data_dict['shapes'].shape) == 3 else data_dict['shapes']
-    return weights_in, shapes, measurements_all, data_dict['genders']
+    samples_in[:, 0] += np.random.normal(0, args.height_noise, samples_in.shape[0])
+    samples_in[:, 1] += np.random.normal(0, args.weight_noise, samples_in.shape[0])
+    #np.random.seed(27)
+    samples_in[:, 1] += np.random.normal(0, args.weight_noise2, samples_in.shape[0])
+
+    if args.num_interaction > 0:
+        interaction_terms = np.array([
+            samples_in[:, 1] / samples_in[:, 0] ** 2,       # w / h ** 2
+            samples_in[:, 1] * samples_in[:, 0],            # w * h
+            samples_in[:, 1] ** 2,                          # w ** 2
+            samples_in[:, 0] ** 2,                          # h ** 2
+            samples_in[:, 1] ** 2 * samples_in[:, 0] ** 2   # w ** 2 * h ** 2
+        ][:args.num_interaction]).swapaxes(0, 1)
+
+        samples_in = np.concatenate([samples_in, interaction_terms], axis=1)
+
+    return samples_in, data_dict['shapes'][:, 0], measurements_all, data_dict['genders']
 
 
-def load_star(args):
+def prepare_in_from_shapes(args, shape):
+    mesh_measurements = MeshMeasurements.__init_from_shape__(args.gender, shape)
 
-    def prepare_in(verts, faces, volume, gender, args):
-        mesh_measurements = MeshMeasurements(verts, faces, volume)
+    height = mesh_measurements.overall_height + np.random.normal(0, args.height_noise)
+    weight = (1000 * mesh_measurements.weight) + np.random.normal(0, args.weight_noise)
 
-        weight = (1000 * mesh_measurements.weight) + np.random.normal(0, 0.5)
+    INTERACTION_TERMS = [weight / height ** 2, weight * height, weight ** 2, height ** 2, height / weight]
 
-        return regressor.get_data(), mesh_measurements.allmeasurements
+    return np.array([height, weight] + INTERACTION_TERMS[:args.num_interaction]), mesh_measurements.allmeasurements
 
-    # TODO: Use both data, not only male data.
-    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', 'male')
 
-    regressor_name = f'{args.pose_reg_type}_{args.silh_reg_type}_{args.soft_reg_type}.npy'
+def load_from_shapes(args):
+    data_dir = os.path.join(args.data_root, args.dataset_name, 'prepared', args.gender)
+
+    suffix = f'_{args.num_interaction}' if args.num_interaction > 0 else ''
+
+    regressor_name = f'inputs_{args.height_noise}_{args.weight_noise}{suffix}.npy'
     regressor_path = os.path.join(data_dir, regressor_name)
 
-    data_dict = {}
-    for fname in os.listdir(data_dir):
-        data_dict[fname.split('.')[0]] = np.load(os.path.join(data_dir, fname))
+    #shapes = np.load(os.path.join(data_dir, 'shapes.npy'))
+    shapes = np.load(os.path.join(data_dir, 'shapes.npy'))
 
     if not os.path.exists(regressor_path):
         samples_in = []
         measurements_all = []
 
-        for sample_idx in range(data_dict['vertss'].shape[0]):
-            verts = data_dict['vertss'][sample_idx]
-            faces = data_dict['facess'][sample_idx]
-            #volume = data_dict['volumes'][sample_idx]
-            #gender = data_dict['genders'][sample_idx]
-            gender = 'male'
-
-            sample_in, sample_measurements = prepare_in(verts, faces, gender, args)
+        for shape_idx, shape in enumerate(shapes):
+            if shape_idx % 1000 == 0 and shape_idx != 0:
+                print(shape_idx)
+            sample_in, sample_measurements = prepare_in_from_shapes(args, shape)
 
             samples_in.append(sample_in)
             measurements_all.append(sample_measurements)
@@ -441,9 +739,7 @@ def load_star(args):
         samples_in = np.load(regressor_path)
         measurements_all = np.load(os.path.join(data_dir, 'measurements.npy'))
 
-    samples_in = normalize(samples_in, axis=0)
+    genders_all = np.array([GENDER_TO_INT_DICT[args.gender]] * samples_in.shape[0])
 
-    # NOTE: Measurements are here in case I want to experiment with regressing to them instead of shape coefs.
-    #return samples_in, data_dict['shapes'][:, 0], measurements_all, np.array([0] * samples_in.shape[0])
-    return samples_in, data_dict['shapes'], measurements_all, np.array([0] * samples_in.shape[0])
-
+    # TODO: Update code (generate.py) so that you remove this odd indexing of shapes.
+    return samples_in, shapes[:, 0], measurements_all, genders_all

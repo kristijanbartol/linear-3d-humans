@@ -26,10 +26,25 @@ The code is a supplementary for our journal paper. Please cite it in your resear
 }
 ```
 
+## Installation
+
+To install the required packages, please create new virtual environment and use requirements.txt (for simplicitly, I dumped all currently installed packages to requirements.txt). 
+In the future, will provide more accurate installation instruction.
+
+## How to run
+
+To run the demo:
+
+```
+python3 demo.py
+```
+
 ## Updates / Work-In-Progress
 
 [ ] Clean the data
+
 [ ] Finish the documentation
+
 [ ] Provide inference scripts and instructions
 
 ## License
@@ -39,5 +54,4 @@ Please read carefully the [terms and conditions](https://github.com/vchoutas/smp
 
 
 ## Acknowledgments
-
 

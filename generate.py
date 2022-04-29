@@ -39,7 +39,7 @@ SMPLX_NUM_KPTS = 21
 
 def render_sample(body_mesh, dataset_name, gender, subject_idx):
     img_dir = os.path.join(
-            IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:04d}')
+            IMG_DIR_TEMPLATE.format(dataset_name), f'{gender}{subject_idx:05d}')
     os.makedirs(os.path.join(img_dir, '0'), exist_ok=True)
 
     imw, imh = 1600, 1600
@@ -63,40 +63,37 @@ def render_sample(body_mesh, dataset_name, gender, subject_idx):
     return silhouettes
 
 
-def save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, body_pose, volume):
+def save(save_dir, gender, shape_coefs):
     np.save(os.path.join(save_dir, f'gender.npy'), GENDER_TO_INT_DICT[gender])
-    np.save(os.path.join(save_dir, f'joints.npy'), joints)
+    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
+
+
+def save_star(save_dir, gender, vertices, faces, shape_coefs, body_pose, volume):
+    np.save(os.path.join(save_dir, f'gender.npy'), GENDER_TO_INT_DICT[gender])
     np.save(os.path.join(save_dir, f'verts.npy'), vertices)
     np.save(os.path.join(save_dir, f'faces.npy'), faces)
-    np.save(os.path.join(save_dir, f'front_silhouette.npy'), silhouettes[0])
-    np.save(os.path.join(save_dir, f'side_silhouette.npy'), silhouettes[1])
-    np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
-    np.save(os.path.join(save_dir, f'pose.npy'), body_pose)
-    np.save(os.path.join(save_dir, f'volume.npy'), volume)
-
-
-def save_star(save_dir, gender, vertices, shape_coefs, body_pose, volume):
-    np.save(os.path.join(save_dir, f'gender.npy'), GENDER_TO_INT_DICT[gender])
-    np.save(os.path.join(save_dir, f'verts.npy'), vertices)
     np.save(os.path.join(save_dir, f'shape.npy'), shape_coefs)
     np.save(os.path.join(save_dir, f'pose.npy'), body_pose)
     np.save(os.path.join(save_dir, f'volume.npy'), volume)
 
 
 def set_shape(model, shape_coefs):
-    if type(shape_coefs) != torch.Tensor:
-        shape_coefs = torch.unsqueeze(torch.tensor(shape_coefs, dtype=torch.float32), dim=0)
-        return model(betas=shape_coefs, return_verts=True)
     if type(model) == smplx.star.STAR:
         return model(pose=torch.zeros((1, 72), device='cpu'), betas=shape_coefs, trans=torch.zeros((1, 3), device='cpu'))
 
 
-def create_model(gender, num_coefs=10, model_type='smpl'):
+    shape_coefs = torch.tensor(shape_coefs, dtype=torch.float32)
+    
+    return model(betas=shape_coefs, return_verts=True)
+
+
+def create_model(gender, body_pose=None, num_coefs=10, model_type='smpl'):
     if model_type == 'star':
         return smplx.star.STAR()
     else:
         if model_type == 'smpl':
-            body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
+            if body_pose is None:
+                body_pose = torch.zeros((1, SMPL_NUM_KPTS * 3))
         elif model_type == 'smplx':
             body_pose = torch.zeros((1, SMPLX_NUM_KPTS * 3))
         return smplx.create(MODELS_DIR, model_type=model_type,
@@ -110,19 +107,23 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, sid):
     output = set_shape(model, shape_coefs)
 
     if type(model) != smplx.star.STAR:
-        joints = output.joints.detach().cpu().numpy().squeeze()
+        #joints = output.joints.detach().cpu().numpy().squeeze()
 
         vertices = output.vertices.detach().cpu().numpy().squeeze()
         faces = model.faces.squeeze()
         body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
             vertex_colors=np.tile(colors['grey'], (6890, 1)))
-        silhouettes = render_sample(body_mesh, dataset_name, gender, 
-                sid)
         
-        save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
+        #silhouettes = render_sample(body_mesh, dataset_name, gender, 
+        #        sid)
+
+        body_mesh.export('tmp.obj')
+
+
+        save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:05d}')
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-        save(save_dir, gender, joints, vertices, faces, silhouettes, shape_coefs, body_pose, body_mesh.volume)
+        save(save_dir, gender, shape_coefs)
 
     else:
         vertices = output.detach().cpu().numpy().squeeze()
@@ -131,13 +132,13 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, sid):
         body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
             vertex_colors=np.tile(colors['grey'], (6890, 1)))
 
-        save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:04d}')
+        save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:05d}')
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-        save_star(save_dir, gender, vertices, shape_coefs, body_pose, body_mesh.volume)
+        save_star(save_dir, gender, vertices, faces, shape_coefs, body_pose, body_mesh.volume)
 
 
-def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_coefs=10):
+def generate_subjects(dataset_name, gender, model_type, num_subjects, regenerate=False, num_coefs=10):
 
     def get_last_idx(dataset_name, gender):
         subject_dirnames = [x for x in os.listdir(
@@ -157,18 +158,21 @@ def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_
     if num_subjects <= 0:
         return
 
-    shape_combination_coefs = all_combinations_with_permutations([0.0, 0.4, 0.8], num_coefs)
-    num_subjects = min(num_subjects, len(shape_combination_coefs))
-    np_shape_coefs = np.empty(shape=(num_subjects + start_idx, 1, num_coefs), dtype=np.float32)
+    #shape_combination_coefs = all_combinations_with_permutations([0.0, 0.4, 0.8], num_coefs)
+    #num_subjects = min(num_subjects, len(shape_combination_coefs))
+    #np_shape_coefs = np.empty(shape=(num_subjects + start_idx, 1, num_coefs), dtype=np.float32)
+    '''
     for perm_idx, perm in enumerate(
             list(shape_combination_coefs)[start_idx : start_idx + num_subjects]):
         perm = np.array(perm)
         perm[0] = 0.
         np_shape_coefs[perm_idx + start_idx] = perm
+    '''
+    np_shape_coefs = np.random.uniform(-1.5, 1.5, size=(num_subjects, 1, 10))
     shape_coefs = torch.from_numpy(np_shape_coefs).to('cpu')
     zero_pose = np.zeros([1, SMPL_NUM_KPTS * 3])
     # NOTE: Generating SMPL-X models.
-    model = create_model(gender, model_type='star')
+    model = create_model(gender, model_type=model_type)
 
     # NOTE: If not regenerate, last shape will still be regenerated, which is OK.
     for subject_idx in range(start_idx, start_idx + num_subjects):
@@ -183,7 +187,7 @@ def generate_subjects(dataset_name, gender, num_subjects, regenerate=False, num_
 
 
 def main(dataset_name, num_neutral=0, num_male=0, 
-        num_female=0, regenerate=False, num_coefs=10):
+        num_female=0, model='smpl', regenerate=False, num_coefs=10):
     
     # Create dataset dir and img/ and gt/ subdirs.
     Path(IMG_DIR_TEMPLATE.format(dataset_name)).mkdir(
@@ -192,19 +196,52 @@ def main(dataset_name, num_neutral=0, num_male=0,
     
     generate_subjects(dataset_name,
             'neutral', 
+            model,
             num_neutral, 
             regenerate
     )
     generate_subjects(dataset_name,
             'male', 
+            model,
             num_male, 
             regenerate
     )
     generate_subjects(dataset_name,
             'female', 
+            model,
             num_female, 
             regenerate
     )
+    
+    
+def generate_extremes(gender='male', model_type='smpl'):
+    model = create_model(gender, model_type=model_type)
+    coefs = [3., 3., 3., 3., 3., 3., 3., 3., 3., 3.]
+    
+    for cidx, coef in enumerate(coefs):
+        for sign in [-1, 1]:
+            shape_coefs = torch.tensor([0.] * 10).unsqueeze(0)
+            shape_coefs[:, cidx] = sign * coef
+            output = set_shape(model, shape_coefs)
+            
+            vertices = output.vertices.detach().cpu().numpy().squeeze()
+            faces = model.faces.squeeze()
+            body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+                vertex_colors=np.tile(colors['darkergray'], (6890, 1)))
+            
+            imw, imh = 500, 500
+            mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
+            mv.set_background_color(colors['white'])
+            
+            apply_mesh_tranfsormations_([body_mesh],
+                                    trimesh.transformations.rotation_matrix(
+                                        np.radians(-80), (0, 1, 0)))
+            mv.set_meshes([body_mesh], group_name='static')
+            img = mv.render()
+
+            rgb = Image.fromarray(img, 'RGB')
+            rgb_path = os.path.join('plots', 'pcas', f'model_{cidx}_{sign}_{gender}.png')
+            rgb.save(rgb_path)
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -216,6 +253,9 @@ def init_argparse() -> argparse.ArgumentParser:
             )
     parser.add_argument(
             '--name', type=str, help='dataset name')
+    parser.add_argument(
+            '--model', type=str, help='smpl or star model'
+    )
     parser.add_argument(
             '--neutral', type=int, default=0,
             help='# of neutral gender subjects')
@@ -243,11 +283,17 @@ def check_args(args):
 
 
 if __name__ == '__main__':
+    '''
+    torch.manual_seed(2021)
+    np.random.seed(2021)
     parser = init_argparse()
     args = check_args(parser.parse_args())
     main(dataset_name=args.name,
          num_neutral=args.neutral,
          num_male=args.male,
          num_female=args.female,
+         model=args.model,
          regenerate=args.regenerate)
+    '''
+    generate_extremes('female')
 
