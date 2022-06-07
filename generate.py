@@ -12,7 +12,7 @@ from human_body_prior.tools.omni_tools import apply_mesh_tranfsormations_
 from human_body_prior.tools.omni_tools import copy2cpu as c2c
 from human_body_prior.tools.omni_tools import colors
 from mesh_viewer import MeshViewer
-from utils import all_combinations_with_permutations, img_to_silhouette
+from utils import get_dist_parallel, img_to_silhouette, get_dist, get_segment_length, get_height
 
 
 MODELS_DIR = 'models/'
@@ -242,6 +242,116 @@ def generate_extremes(gender='male', model_type='smpl'):
             rgb = Image.fromarray(img, 'RGB')
             rgb_path = os.path.join('plots', 'pcas', f'model_{cidx}_{sign}_{gender}.png')
             rgb.save(rgb_path)
+            
+
+def generate_scaled():
+    ''' Generate meshes that are scaled by the RMSD=1 definition of scale function.
+    '''
+    model = create_model('male', model_type='smpl')
+    heights = []
+    
+    for _ in range(1000):
+        shape_coefs = (torch.rand((1, 10), dtype=torch.float32) - 0.5) * 6.
+        output = set_shape(model, shape_coefs)
+
+        verts = output.vertices.detach().cpu().numpy()
+        
+        verts_mean = np.mean(verts, axis=1, keepdims=True)
+        verts_trans = verts - verts_mean
+        verts_scale = np.sqrt(np.sum(verts_trans ** 2, axis=(1, 2), keepdims=True) / verts.shape[1])
+        verts_norm = verts_trans / verts_scale
+        
+        height = np.abs((verts_norm[0, 412] - verts_norm[0, 3463]))[1]
+        heights.append(height)
+        
+    heights = np.array(heights)
+    print('Max: {:.2f}, Min: {:.2f} (Max-Min={:.2f})'.format(heights.max(), heights.min(), heights.max() - heights.min()))
+    
+    
+def generate_normalized():
+    ''' Generate normalized meshes whose heights (sum of the particular body lengths) are 1.
+    '''
+    model = create_model('male', model_type='smpl')
+    verts_heights = []
+    joints_heights = []
+    norm_heights = []
+    
+    for _ in range(1000):
+        shape_coefs = (torch.rand((1, 10), dtype=torch.float32) - 0.5) * 6.
+        output = set_shape(model, shape_coefs)
+
+        verts = output.vertices.detach().cpu().numpy()[0]
+        joints = output.joints.detach().cpu().numpy()[0]
+        
+        verts_height = np.abs((verts[412] - verts[3463]))[1]
+        verts_heights.append(verts_height)
+        joints_height = get_dist(np.array([
+            joints[15],     # head
+            joints[12],     # neck
+            joints[9],      # spine1
+            joints[6],      # spine2
+            joints[3],      # spine3
+            joints[0],      # pelvis
+            joints[2],      # right hip
+            joints[5],      # right knee
+            joints[8]       # right ankle
+        ]))
+        
+        joints_height_parallel = get_dist_parallel(np.array([
+            joints[15],     # head
+            joints[12],     # neck
+            joints[9],      # spine1
+            joints[6],      # spine2
+            joints[3],      # spine3
+            joints[0],      # pelvis
+            joints[2],      # right hip
+            joints[5],      # right knee
+            joints[8]       # right ankle
+        ]))
+        joints_heights.append(joints_height)
+        
+        assert np.isclose(joints_height, joints_height_parallel)
+        
+        norm_height = verts_height / joints_height
+        norm_heights.append(norm_height)
+        
+    verts_heights = np.array(verts_heights)
+    joints_heights = np.array(joints_heights)
+    norm_heights = np.array(norm_heights)
+    print('Max: {:.2f}, Min: {:.2f} (Max-Min={:.2f})'.format(verts_heights.max(), verts_heights.min(), verts_heights.max() - verts_heights.min()))
+    print('Max: {:.2f}, Min: {:.2f} (Max-Min={:.2f})'.format(joints_heights.max(), joints_heights.min(), joints_heights.max() - joints_heights.min()))
+    print('Max: {:.2f}, Min: {:.2f} (Max-Min={:.2f})'.format(norm_heights.max(), norm_heights.min(), norm_heights.max() - norm_heights.min()))
+    
+    
+def generate_same_relative_shape():
+    ''' Generate meshes that have the same (relative) shape (PCA1-10), but different height (PCA0).
+    '''
+    model = create_model('male', model_type='smpl')
+    shape_coefs = (np.random.rand(1, 10) - 0.5) * 6
+    
+    for idx, pca0 in enumerate(np.arange(-3, 3, 0.3)):
+        shape_coefs[0] = pca0
+        
+        output = set_shape(model, shape_coefs)
+            
+        vertices = output.vertices.detach().cpu().numpy().squeeze()
+        faces = model.faces.squeeze()
+        body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
+            vertex_colors=np.tile(colors['darkergray'], (6890, 1)))
+        
+        imw, imh = 500, 500
+        mv = MeshViewer(width=imw, height=imh, use_offscreen=True)
+        mv.set_background_color(colors['white'])
+        
+        apply_mesh_tranfsormations_([body_mesh],
+                                trimesh.transformations.rotation_matrix(
+                                    np.radians(-45), (0, 1, 0)))
+        mv.set_meshes([body_mesh], group_name='static')
+        img = mv.render()
+
+        rgb = Image.fromarray(img, 'RGB')
+        rgb_path = os.path.join('plots', 'relative_shape', f'model_{idx}.png')
+        rgb.save(rgb_path)
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -295,5 +405,8 @@ if __name__ == '__main__':
          model=args.model,
          regenerate=args.regenerate)
     '''
-    generate_extremes('female')
+    #generate_extremes('female')
 
+    #generate_scaled()
+    #generate_normalized()
+    generate_same_relative_shape()
