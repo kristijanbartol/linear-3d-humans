@@ -8,8 +8,8 @@ from human_body_prior.tools.omni_tools import colors
 from load import MeshMeasurements
 from mesh_viewer import MeshViewer
 
-MEAS_COEF_FILE = './results/{}_meas_coefs.npy'
-SHAPE_COEF_FILE = './results/{}_shape_coefs.npy'
+MEAS_COEF_FILE = './coefs/{}_meas_coefs.npy'
+SHAPE_COEF_FILE = './coefs/{}_shape_coefs.npy'
 
 
 if __name__ == '__main__':
