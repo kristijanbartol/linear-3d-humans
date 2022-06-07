@@ -41,6 +41,30 @@ To run the demo:
 python3 demo.py
 ```
 
+The expected input/output:
+
+```
+Enter your gender ([male, female]):male
+Enter your height [in meters] and weight [in kg]: 1.72 65
+head_circumference: 55.32cm
+neck_circumference: 37.31cm
+shoulder_to_crotch: 64.38cm
+chest_circumference: 89.44cm
+waist_circumference: 84.36cm
+hip_circumference: 92.78cm
+wrist_circumference: 16.26cm
+bicep_circumference: 28.05cm
+forearm_circumference: 26.33cm
+arm_length: 50.94cm
+inside_leg_length: 73.44cm
+thigh_circumference: 56.03cm
+calf_circumference: 34.45cm
+ankle_circumference: 21.23cm
+shoulder_breadth: 35.31cm
+```
+
+<img src="https://github.com/kristijanbartol/linear-3d-humans/blob/master/assets/demo-screenshot.png" width="800">
+
 ## Updates / Work-In-Progress
 
 - [X] Prepare demo
