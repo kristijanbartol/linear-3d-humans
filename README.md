@@ -1,6 +1,6 @@
 ## Linear Regression vs. Deep Learning: A Simple Yet Effective Baseline for Human Body Measurement
 
-**NOTE: The due date for the next set of improvements is May 13th (see Updates/Work-In-Progress section).**
+**NOTE: The due date for the next set of improvements is June 30th (see Updates/Work-In-Progress section).**
 
 We show that the simple linear regression model performs comparably to the state-of-the-art for the task of human body measurement. The input to the model only consists of the information that a person can self-estimate, such as height and weight. The simplicity of the proposed regression model makes it perfectly suitable as a baseline in addition to the convenience for applications such as the virtual try-on. To improve the repeatability of the results of our baseline and the competing methods, we provide guidelines toward standardized body measurement estimation. An overview of our approach can be summarized in an image:
 
@@ -41,7 +41,33 @@ To run the demo:
 python3 demo.py
 ```
 
+The expected input/output:
+
+```
+Enter your gender ([male, female]):male
+Enter your height [in meters] and weight [in kg]: 1.72 65
+head_circumference: 55.32cm
+neck_circumference: 37.31cm
+shoulder_to_crotch: 64.38cm
+chest_circumference: 89.44cm
+waist_circumference: 84.36cm
+hip_circumference: 92.78cm
+wrist_circumference: 16.26cm
+bicep_circumference: 28.05cm
+forearm_circumference: 26.33cm
+arm_length: 50.94cm
+inside_leg_length: 73.44cm
+thigh_circumference: 56.03cm
+calf_circumference: 34.45cm
+ankle_circumference: 21.23cm
+shoulder_breadth: 35.31cm
+```
+
+<img src="https://github.com/kristijanbartol/linear-3d-humans/blob/master/assets/demo-screenshot.png" width="800">
+
 ## Updates / Work-In-Progress
+
+- [X] Prepare demo
 
 - [ ] Clean the code
 
