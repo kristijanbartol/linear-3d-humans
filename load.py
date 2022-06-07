@@ -1,25 +1,10 @@
 import os
 from math import nan
 import numpy as np
-from pyrender.mesh import Mesh
-from sklearn.preprocessing import normalize
 import trimesh
 
 from generate import GENDER_TO_INT_DICT, create_model, set_shape
-from smplx.body_models import create
-
-
-def get_dist(*vs):
-    # NOTE: Works both for 3D and 2D joint coordinates.
-    total_dist = 0
-    for vidx in range(len(vs) - 1):
-        total_dist += np.linalg.norm(vs[vidx] - vs[vidx + 1])
-    return total_dist
-
-
-def get_height(v1, v2):
-    # NOTE: Works both for 3D and 2D joint coordinates.
-    return np.abs((v1 - v2))[1]
+from utils import get_dist, get_segment_length, get_height
 
 
 HORIZ_NORMAL = np.array([0, 1, 0], dtype=np.float32)
@@ -58,8 +43,10 @@ class MeshMeasurements:
     LOWER_BELLY_POINT = 1769
     #FOREHEAD_POINT = 335
     FOREHEAD_POINT = 336
-    NECK_POINT = 3839
-    PELVIS_POINT = 3145
+    #NECK_POINT = 3839
+    NECK_POINT = 3049
+    #PELVIS_POINT = 3145
+    HIP_POINT = 1806
     RIGHT_BICEP_POINT = 6281
     RIGHT_FOREARM_POINT = 5084
     RIGHT_THIGH_POINT = 4971
@@ -96,7 +83,7 @@ class MeshMeasurements:
     FOREARM_INDICES = (5132, 5133, 5036, 5035, 5192, 5097, 5096, 5113, 5112, 5168, 5171, 5207, 5087, 5083, 5082, 5163)
     BICEP_INDICES = (6282, 4881, 4878, 6281, 6280, 4882, 4883, 4854, 4853, 4278, 4279, 4886, 4744, 4741, 5365, 5010, 5011, 6283)
     HIP_INDICES = (1807, 864, 863, 1205, 1204, 1450, 1799, 868, 867, 937, 816, 815, 1789, 1786, 3111, 3113, 3112, 842, 841, 3158)   # X2
-    NECK_INDICES = (3057, 451, 214, 217, 151, 152, 297, 207, 208, 210, 211, 256, 424, 3164)     # X2
+    NECK_INDICES = (3049, 333, 308, 309, 296, 174, 175, 299, 224, 223, 300, 301, 305, 302)     # X2
 
     # For proposer labels.
     overall_height = None
@@ -186,66 +173,66 @@ class MeshMeasurements:
 
     @property
     def shoulder_breadth(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.SHOULDER_BREADTH[0]],
             self.verts[self.SHOULDER_BREADTH[1]]
-        )
+        ])
 
     @property
     def chest_width(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.CHEST_WIDTH[0]],
             self.verts[self.CHEST_WIDTH[1]]
-        )
+        ])
 
     @property
     def waist_width(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.WAIST_WIDTH[0]],
             self.verts[self.WAIST_WIDTH[1]]
-        )
+        ])
 
     @property
     def torso_depth(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.TORSO_DEPTH[0]],
             self.verts[self.TORSO_DEPTH[1]]
-        )
+        ])
 
     @property
     def hip_width(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.HIP_WIDTH[0]],
             self.verts[self.HIP_WIDTH[1]]
-        )
+        ])
 
     @property
     def arm_span_fingers(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.ARM_SPAN_FINGERS[0]],
             self.verts[self.ARM_SPAN_FINGERS[1]]
-        )
+        ])
 
     @property
     def arm_span_wrist(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.ARM_SPAN_WRIST[0]],
             self.verts[self.ARM_SPAN_WRIST[1]]
-        )
+        ])
 
     @property
     def arm_length(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.ARM_LENGTH[0]],
             self.verts[self.ARM_LENGTH[1]]
-        )
+        ])
 
     @property
     def forearm_length(self):
-        return get_dist(
+        return get_dist([
             self.verts[self.FOREARM_LENGTH[0]],
             self.verts[self.FOREARM_LENGTH[1]]
-        )
+        ])
 
     @property
     def inside_leg_length(self):
@@ -256,105 +243,126 @@ class MeshMeasurements:
 
     @property
     def waist_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    HORIZ_NORMAL,
-        #    self.verts[self.LOWER_BELLY_POINT])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.LOWER_BELLY_POINT])
         indexes = self.WAIST_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        line_segments = np.array([(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)])
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments])
+        #vs = [self.verts[idx] for idx in indexes]
+        return get_segment_length(intersection_segments)
 
     @property
     def head_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
+        intersection_segments = trimesh.intersections.mesh_plane(
             self.mesh,
             HORIZ_NORMAL,
             self.verts[self.FOREHEAD_POINT])
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def neck_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    HORIZ_NORMAL,
-        #    self.verts[self.NECK_POINT])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.NECK_POINT])
         indexes = self.NECK_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        line_segments = np.array([(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)])
+        #return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2.
+        vs = [self.verts[idx] for idx in indexes]
+        #return get_dist(vs) * 2
+        #return sum([get_dist(x[0], x[1]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def chest_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    HORIZ_NORMAL,
-        #    self.verts[self.LEFT_CHEST])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.LEFT_CHEST])
         indexes = self.CHEST_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
+        #line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        #return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
+        vs = [self.verts[idx] for idx in indexes]
+        #return get_dist(vs) * 2
+        #return sum([get_dist(x[0], x[1]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def hip_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    HORIZ_NORMAL,
-        #    self.verts[self.PELVIS_POINT])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            HORIZ_NORMAL,
+            self.verts[self.HIP_POINT])
         indexes = self.HIP_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
+        #line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        #return sum([get_dist(x[0], x[1]) for x in line_segments]) * 2
+        vs = [self.verts[idx] for idx in indexes]
+        #return get_dist(vs) * 2
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def wrist_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    VERT_NORMAL,
-        #    self.verts[self.LEFT_WRIST])
-        indexes = self.WRIST_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            VERT_NORMAL,
+            self.verts[self.LEFT_WRIST])
+        #indexes = self.WRIST_INDICES
+        #line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def bicep_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    VERT_NORMAL,
-        #    self.verts[self.RIGHT_BICEP_POINT])
-        indexes = self.BICEP_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            VERT_NORMAL,
+            self.verts[self.RIGHT_BICEP_POINT])
+        #indexes = self.BICEP_INDICES
+        #line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def forearm_circumference(self):
-        #line_segments = trimesh.intersections.mesh_plane(
-        #    self.mesh,
-        #    VERT_NORMAL,
-        #    self.verts[self.RIGHT_FOREARM_POINT])
-        indexes = self.FOREARM_INDICES
-        line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
-        return sum([get_dist(x[0], x[1]) for x in line_segments])
+        intersection_segments = trimesh.intersections.mesh_plane(
+            self.mesh,
+            VERT_NORMAL,
+            self.verts[self.RIGHT_FOREARM_POINT])
+        #indexes = self.FOREARM_INDICES
+        #line_segments = [(self.verts[indexes[idx]], self.verts[indexes[idx+1]]) for idx in range(len(indexes) - 1)]
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments])
+        return get_segment_length(intersection_segments)
 
     @property
     def thigh_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
+        intersection_segments = trimesh.intersections.mesh_plane(
             self.mesh,
             HORIZ_NORMAL,
             self.verts[self.RIGHT_THIGH_POINT])
-        return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments]) / 2.
+        return get_segment_length(intersection_segments) / 2.
 
     @property
     def calf_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
+        intersection_segments = trimesh.intersections.mesh_plane(
             self.mesh,
             HORIZ_NORMAL,
             self.verts[self.RIGHT_CALF_POINT])
-        return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments]) / 2.
+        return get_segment_length(intersection_segments) / 2.
 
     @property
     def ankle_circumference(self):
-        line_segments = trimesh.intersections.mesh_plane(
+        intersection_segments = trimesh.intersections.mesh_plane(
             self.mesh,
             HORIZ_NORMAL,
             self.verts[self.RIGHT_ANKLE_POINT])
-        return sum([get_dist(x[0], x[1]) for x in line_segments]) / 2.
+        #return sum([get_dist([x[0], x[1]]) for x in line_segments]) / 2.
+        return get_segment_length(intersection_segments) / 2.
 
     def _get_all_measurements(self):
         return np.array([getattr(self, x) for x in dir(self) if '_' in x and x[0].islower()])

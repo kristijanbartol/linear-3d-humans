@@ -26,17 +26,17 @@
             //]
 
             // train.py
-            "args": [
-                "--data_root", "data/",
-                "--dataset_name", "nomo",
-                "--features", "baseline",
-                "--target", "measurements",
-                "--gender", "female",
-                "--height_noise", "0.01",
-                "--weight_noise", "1.5",
-                "--weight_noise2", "1.5",
-                "--num_interaction", "0"
-            ]
+            //"args": [
+            //    "--data_root", "data/",
+            //    "--dataset_name", "nomo",
+            //    "--features", "baseline",
+            //    "--target", "measurements",
+            //    "--gender", "male",
+            //    "--height_noise", "0.01",
+            //    "--weight_noise", "1.5",
+            //    "--weight_noise2", "1.5",
+            //    "--num_interaction", "2"
+            //]
         }
     ]
 }

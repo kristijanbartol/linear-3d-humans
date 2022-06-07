@@ -20,7 +20,9 @@ if __name__ == '__main__':
     meas_coefs = np.load(MEAS_COEF_FILE.format(gender_in))
     shape_coefs = np.load(SHAPE_COEF_FILE.format(gender_in))
 
-    measurements = h * meas_coefs[:, 0] + w * meas_coefs[:, 1] + meas_coefs[:, 2]
+    # NOTE: Demo only works for coefficients without the interaction terms.
+    measurements = h * meas_coefs[:, 0] + w * meas_coefs[:, 1] + \
+        w / h**2 * meas_coefs[:, 2] + w * h * meas_coefs[:, 3] + meas_coefs[:, 4]
     shape_params = h * shape_coefs[:, 0] + w * shape_coefs[:, 1] + shape_coefs[:, 2]
 
     for midx, mname in enumerate(MeshMeasurements.aplabels()):

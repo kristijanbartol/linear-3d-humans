@@ -122,7 +122,9 @@ anthropometry_venv/
 plots/
 *venv/
 
-*.npy
+#*.npy
 *.zip
+
+!coefs/
 
 git_token
