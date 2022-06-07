@@ -116,11 +116,8 @@ if __name__ == '__main__':
     y_gt = y_test if args.target == 'shape' else meas_test
     params_errors, maes, s2s_dists, mres, allowable_ratios = evaluate(y_predict, y_gt, gender_test, args.target)
 
-
-
     score = r2_score(y_gt, y_predict)
     print(f'R2-score: {score}')
-
 
     # NOTE: Need to predict shape parameters here.
     print('Saving results...')

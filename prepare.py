@@ -4,12 +4,13 @@ from cv2 import imread
 import json
 from pathlib import Path
 import trimesh
+import pickle
 import numpy as np
 import pyrender
 
 from human_body_prior.tools.omni_tools import colors
 
-from generate import SMPL_NUM_KPTS, create_model, set_shape, GENDER_TO_INT_DICT
+from generate import GENDER_TO_STR_DICT, SMPL_NUM_KPTS, create_model, set_shape, GENDER_TO_INT_DICT
 from utils import img_to_silhouette
 
 
