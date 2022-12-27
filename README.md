@@ -4,7 +4,7 @@
 
 We show that the simple linear regression model performs comparably to the state-of-the-art for the task of human body measurement. The input to the model only consists of the information that a person can self-estimate, such as height and weight. The simplicity of the proposed regression model makes it perfectly suitable as a baseline in addition to the convenience for applications such as the virtual try-on. To improve the repeatability of the results of our baseline and the competing methods, we provide guidelines toward standardized body measurement estimation. An overview of our approach can be summarized in an image:
 
-![overview](https://github.com/kristijanbartol/linear-3d-humans/blob/master/assets/overview.png)
+![https://github.com/kristijanbartol/linear-3d-humans/blob/master/assets/overview.png](https://github.com/kristijanbartol/linear-3d-humans/blob/main/assets/overview.png)
 
 
 ## Citation
@@ -63,19 +63,23 @@ ankle_circumference: 21.23cm
 shoulder_breadth: 35.31cm
 ```
 
-![screenshot](https://github.com/kristijanbartol/linear-3d-humans/blob/master/assets/demo-screenshot.png)
+![screenshot](https://github.com/kristijanbartol/linear-3d-humans/blob/main/assets/demo-screenshot.png)
 
 ## Updates / Work-In-Progress
 
-- [X] Prepare demo
+- [X] Prepare rudimentary demo
 
-- [ ] Clean the code
+- [ ] Clean the code (v0.1)
 
 - [ ] Prepare-the-training-data instructions
 
 - [ ] Finish the documentation
 
 - [ ] Provide inference scripts and instructions
+
+- [ ] Create a simple Python UI (v0.2)
+
+- [ ] Add source code of the Kivy mobile that uses the fitted coefficients
 
 ## License
 
