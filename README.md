@@ -31,9 +31,35 @@ The code is a supplementary for our journal paper. Please cite it in your resear
 To install the required packages, please create new virtual environment and use requirements.txt (for simplicitly, I dumped all currently installed packages to requirements.txt). 
 In the future, will provide more accurate installation instruction.
 
+## Prepare the data
+
+To prepare (generate) training and validation data, run with these sample arguments:
+
+```
+python3 generate.py --name my-dataset \\
+    --model smpl \\
+    --male 10000 \\
+    --female 10000
+```
+
+## Fitting / Training
+
+To fit the model, run the `main.py`:
+
+```
+python3 main.py --data_root data/ \\
+    --dataset_name nomo \\
+    --features baseline \\
+    --target measurements \\
+    --gender male \\
+    --height_noise 0.01 \\
+    --weight_noise 1.5 \\
+    --num_interaction 2
+```
+
 ## How to run
 
-To run the demo:
+To run the demo with a rudimentary Python visualization:
 
 ```
 python3 demo.py
@@ -67,13 +93,15 @@ shoulder_breadth: 35.31cm
 
 - [X] Prepare rudimentary demo
 
-- [ ] Clean the code (v0.1)
+- [X] Clean the code (v0.1)
 
-- [ ] Prepare-the-training-data instructions
+- [X] Prepare-the-training-data instructions
 
-- [ ] Finish the documentation
+- [X] Finish the documentation
 
-- [ ] Provide inference scripts and instructions
+- [X] Provide inference scripts and instructions
+
+- [ ] Check issue #1
 
 - [ ] Create a simple Python UI (v0.2)
 
