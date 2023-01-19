@@ -48,7 +48,7 @@ et-xmlfile==1.1.0
 fasteners==0.14.1
 filelock==3.0.12
 freetype-py==2.2.0
-future==0.18.2
+future==0.18.3
 fvcore==0.1.5.post20211015
 gdown==3.13.0
 google-auth==1.13.1
