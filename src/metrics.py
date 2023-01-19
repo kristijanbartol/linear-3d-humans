@@ -1,8 +1,13 @@
 import numpy as np
+from math import nan
 from pyrender.mesh import Mesh
 
-from generate import create_model, set_shape, GENDER_TO_STR_DICT
-from load import MeshMeasurements
+from .generate import create_model, set_shape, GENDER_TO_STR_DICT
+from .load import MeshMeasurements
+
+
+# Allowable errors.
+ALLOW_ERR = np.array([5.0, 11.0, 15.0, 12.0, 12.0, nan, nan, nan, 6.0, nan, 4.0, nan, nan, nan, 8.0, 10.0]) * 0.001
 
 
 def params_error(pred_params, gt_params):
@@ -25,7 +30,7 @@ def evaluate(y_predict, y_target, genders, mode='measurements', poses=None):
         #    np.std(np.abs(y_predict - y_target), axis=0), np.max(np.abs(y_predict - y_target), axis=0), np.empty(0), np.empty(0), np.empty(0)
         maes = np.abs(y_predict - y_target)
         mres = maes / y_target
-        allowable_ratios = (maes < MeshMeasurements.AEs).sum(axis=0) / maes.shape[0]
+        allowable_ratios = (maes < ALLOW_ERR).sum(axis=0) / maes.shape[0]
         return np.zeros((y_predict.shape[0], 10)), maes, np.empty(0), mres, allowable_ratios
     else:
         params_errors = []

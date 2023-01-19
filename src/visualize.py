@@ -11,24 +11,21 @@ from PIL import Image
 from human_body_prior.tools.omni_tools import apply_mesh_tranfsormations_
 from human_body_prior.tools.omni_tools import copy2cpu as c2c
 from human_body_prior.tools.omni_tools import colors
-from mesh_viewer import MeshViewer
 
-from load import MeshMeasurements
-from models import Models
-from generate import create_model, set_shape
+from .mesh_viewer import MeshViewer
+from .measures import MeshMeasurements
+from .models import Models
+from .generate import create_model, set_shape
 
 
 os.environ['PYOPENGL_PLATFORM'] = 'egl'
-
-
-all_to_ap_measurement_idxs = [10, 15, 20, 6, 23, 18, 25, 4, 8, 1, 13, 21, 5, 0, 19]
 
 
 def visualize_measure_errors(measure_errors, label, noise_stds):
     fig_name = f'noisy_measurement_errors_{label}.png'
     fig_path = os.path.join('vis/', fig_name)
 
-    ap_measurement_errors = measure_errors[:, all_to_ap_measurement_idxs].mean(axis=2) * 100.
+    ap_measurement_errors = measure_errors.mean(axis=2) * 100.
 
     noise_stds = [x * 100 if label == 'height' else x for x in noise_stds]
     to_string = lambda x: str(x) + 'cm' if label == 'height' else str(x) + 'kg' 
@@ -197,9 +194,9 @@ def visualize_measurement_distribution(gender, X, all_measurements):
     fig_name = f'bodyfit_distributions_{gender}.png'
     fig_path = os.path.join('vis/', fig_name)
 
-    ap_measurements = all_measurements[:, all_to_ap_measurement_idxs]
+    ap_measurements = all_measurements
 
-    labels = ['Height', 'Weight'] + MeshMeasurements.letterlabels()
+    labels = ['Height', 'Weight'] + MeshMeasurements.labels()
     data = np.concatenate([X, ap_measurements], axis=1).swapaxes(0, 1)
     data[2:] *= 100.
     data[0, :] *= 100.

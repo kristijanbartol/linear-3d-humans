@@ -4,58 +4,73 @@ import os
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
-from sklearn.linear_model import LinearRegression
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-import pandas as pd
-from sklearn.preprocessing import normalize
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import KFold
 
-from load import MeshMeasurements, load, load_from_shapes
-from metrics import evaluate
-from models import Models
-from logs import log, save_results
-from visualize import visualize, visualize_measurement_distribution
+from src.load import MeshMeasurements, load, load_from_shapes
+from src.metrics import evaluate
+from src.model import Model
+from src.logs import log, save_results
+from src.visualize import visualize, visualize_measurement_distribution
 
 
 RESULTS_DIR = './results/'
-all_to_ap_measurement_idxs = [10, 16, 20, 6, 23, 11, 25, 4, 8, 1, 14, 21, 5, 0, 19]
 
 
 def init_argparse():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--data_root', type=str, 
+        '--data_root', 
+        type=str, 
         help='root data folder'
     )
     parser.add_argument(
-        '--dataset_name', type=str, 
+        '--dataset_name', 
+        type=str, 
         help='dataset name'
     )
     parser.add_argument(
-        '--features', type=str, choices=['baseline', 'measurements'],
+        '--features', 
+        type=str, 
+        choices=['baseline', 'measurements'],
         help='input features (for fitting from measurements to PCs)'
     )
     parser.add_argument(
-        '--target', type=str, choices=['shape', 'measurements'],
+        '--target', 
+        type=str, 
+        choices=['shape', 'measurements'],
         help='target variable'
     )
     parser.add_argument(
-        '--gender', type=str, choices=['male', 'female', 'neutral', 'both'],
+        '--model_type', 
+        type=str, 
+        choices=['linear', 'poly', 'tree', 'mlp'],
+        default='linear',
+        help='target variable'
+    )
+    parser.add_argument(
+        '--gender', 
+        type=str, 
+        choices=['male', 'female', 'neutral', 'both'],
         help='If both, then evaluate gender-specific model on all data. If neutral, use neutral model'
     )
     parser.add_argument(
-        '--height_noise', type=float, help='std added to height GT'
+        '--height_noise', 
+        type=float, 
+        help='std added to height GT'
     )
     parser.add_argument(
-        '--weight_noise', type=float, help='std added to weight GT'
+        '--weight_noise', 
+        type=float, 
+        help='std added to weight GT'
     )
     parser.add_argument(
-        '--weight_noise2', type=float, help='std added to weight GT'
+        '--weight_noise2', 
+        type=float, 
+        help='std added to weight GT'
     )
     parser.add_argument(
-        '--num_interaction', type=int, help='# interaction terms added to linear model'
+        '--num_interaction', 
+        type=int, 
+        help='# interaction terms added to linear model'
     )
 
     return parser
@@ -77,7 +92,7 @@ if __name__ == '__main__':
     print('Train/test splitting...')
 
     np.save(f'{args.gender}_measurements_{args.weight_noise}_{args.weight_noise2}_{args.height_noise}.npy', np.concatenate([X, measurements], axis=1))
-    np.save('measurement_names.npy', np.array(['height', 'weight'] + MeshMeasurements.alllabels()))
+    np.save('measurement_names.npy', np.array(['height', 'weight'] + MeshMeasurements.labels()))
 
 
     indices = np.arange(X.shape[0])
@@ -91,8 +106,7 @@ if __name__ == '__main__':
         X, y, measurements, genders, indices, test_size=0.33, random_state=2021)
 
     print(f'Creating model...')
-    model = LinearRegression()
-    #model = Models.tree()
+    model = Model(args.model_type)
 
 
     print(f'Target variable: {args.target}...')
@@ -101,12 +115,12 @@ if __name__ == '__main__':
     y_predict = reg.predict(X_test)
     
     
-    importances = Models.feature_importances(model)
-    intercepts = Models.intercepts(model)
+    importances = model.feature_importances()
+    intercepts = model.intercepts()
     
     if args.target == 'measurements':
-        importances = importances[all_to_ap_measurement_idxs]
-        intercepts = intercepts[all_to_ap_measurement_idxs]
+        importances = importances
+        intercepts = intercepts
     
     all_coefs = np.concatenate([importances, intercepts.reshape((-1, 1))], axis=1)
     np.save(os.path.join(RESULTS_DIR, f'{args.gender}_meas_coefs.npy'), all_coefs)

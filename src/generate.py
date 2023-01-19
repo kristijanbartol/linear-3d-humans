@@ -11,8 +11,8 @@ import smplx
 from human_body_prior.tools.omni_tools import apply_mesh_tranfsormations_
 from human_body_prior.tools.omni_tools import copy2cpu as c2c
 from human_body_prior.tools.omni_tools import colors
-from mesh_viewer import MeshViewer
-from utils import get_dist_parallel, img_to_silhouette, get_dist, get_segment_length, get_height
+from .mesh_viewer import MeshViewer
+from .utils import get_dist_parallel, img_to_silhouette, get_dist, get_segment_length, get_height
 
 
 MODELS_DIR = 'models/'

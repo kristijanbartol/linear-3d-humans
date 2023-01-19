@@ -1,13 +1,12 @@
 import numpy as np
 import os
-from generate import GENDER_TO_STR_DICT
+from .generate import GENDER_TO_STR_DICT
 
-from load import MeshMeasurements, Regressor
-from models import Models
+from .measures import MeshMeasurements
+from .models import Models
 
 
 RESULTS_DIR = './results/'
-all_to_ap_measurement_idxs = [10, 16, 20, 6, 23, 11, 25, 4, 8, 1, 14, 21, 5, 0, 19]
 
 
 def log(model, args, params_errors, maes, s2s_dists, mres, allowable_ratios):
@@ -31,15 +30,14 @@ def log(model, args, params_errors, maes, s2s_dists, mres, allowable_ratios):
         print(f'PCA{param_idx}: {params_means[param_idx]:.6f}, {params_stds[param_idx]:.6f}, {params_maxs[param_idx]:.6f}')
 
     print('\nMEASURES\n=========')
-    measure_labels = MeshMeasurements.alllabels()
+    measure_labels = MeshMeasurements.labels()
     
-    #all_to_ap_measurement_idxs = list(range(len(MeshMeasurements.alllabels())))
-    ap_labels = np.array(measure_labels)[all_to_ap_measurement_idxs]
-    ap_measurement_means = measurement_means[all_to_ap_measurement_idxs]
-    ap_measurement_stds = measurement_stds[all_to_ap_measurement_idxs]
-    ap_measurement_maxs = measurement_maxs[all_to_ap_measurement_idxs]
-    ap_mres_means = mres_means[all_to_ap_measurement_idxs]
-    ap_allowable_ratios = allowable_ratios[all_to_ap_measurement_idxs]
+    ap_labels = np.array(measure_labels)
+    ap_measurement_means = measurement_means
+    ap_measurement_stds = measurement_stds
+    ap_measurement_maxs = measurement_maxs
+    ap_mres_means = mres_means
+    ap_allowable_ratios = allowable_ratios
     
     for meas_idx in range(ap_measurement_means.shape[0]):
         print(f'{(ap_labels[meas_idx])}: {(ap_measurement_means[meas_idx]):.6f}mm, '
@@ -56,8 +54,8 @@ def log(model, args, params_errors, maes, s2s_dists, mres, allowable_ratios):
             intercepts = Models.intercepts(model)
             all_coefs = np.concatenate([importances, intercepts.reshape((-1, 1))], axis=1)
             np.save(os.path.join(RESULTS_DIR, f'{args.gender}_shape_coefs.npy'), all_coefs)
-        importances = importances[all_to_ap_measurement_idxs]
-        intercepts = Models.intercepts(model)[all_to_ap_measurement_idxs]
+        importances = importances
+        intercepts = Models.intercepts(model)
         for meas_idx in range(len(ap_labels)):
             print(f'{ap_labels[meas_idx]}: {importances[meas_idx]} {intercepts[meas_idx]}')
         
