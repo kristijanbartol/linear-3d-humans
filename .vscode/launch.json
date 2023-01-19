@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             // generate.py
             //"args": [
-            //    "--name", "smpl-uniform-1.5",
+            //    "--name", "my-dataset",
             //    "--model", "smpl",
             //    "--male", "10000",
             //    "--female", "10000",
@@ -25,7 +25,7 @@
             //    "--gender", "neutral"
             //]
 
-            // train.py
+            // main.py
             "args": [
                 "--data_root", "data/",
                 "--dataset_name", "nomo",

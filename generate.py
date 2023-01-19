@@ -11,8 +11,8 @@ import smplx
 from human_body_prior.tools.omni_tools import apply_mesh_tranfsormations_
 from human_body_prior.tools.omni_tools import copy2cpu as c2c
 from human_body_prior.tools.omni_tools import colors
-from .mesh_viewer import MeshViewer
-from .utils import get_dist_parallel, img_to_silhouette, get_dist, get_segment_length, get_height
+from src.mesh_viewer import MeshViewer
+from src.utils import get_dist_parallel, img_to_silhouette, get_dist, get_segment_length, get_height
 
 
 MODELS_DIR = 'models/'
@@ -107,18 +107,10 @@ def generate_sample(dataset_name, gender, model, shape_coefs, body_pose, sid):
     output = set_shape(model, shape_coefs)
 
     if type(model) != smplx.star.STAR:
-        #joints = output.joints.detach().cpu().numpy().squeeze()
-
         vertices = output.vertices.detach().cpu().numpy().squeeze()
         faces = model.faces.squeeze()
         body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces, 
             vertex_colors=np.tile(colors['grey'], (6890, 1)))
-        
-        #silhouettes = render_sample(body_mesh, dataset_name, gender, 
-        #        sid)
-
-        body_mesh.export('tmp.obj')
-
 
         save_dir = os.path.join(DATA_DIR_TEMPLATE.format(dataset_name), f'{gender}{sid:05d}')
         Path(save_dir).mkdir(parents=True, exist_ok=True)
@@ -158,16 +150,6 @@ def generate_subjects(dataset_name, gender, model_type, num_subjects, regenerate
     if num_subjects <= 0:
         return
 
-    #shape_combination_coefs = all_combinations_with_permutations([0.0, 0.4, 0.8], num_coefs)
-    #num_subjects = min(num_subjects, len(shape_combination_coefs))
-    #np_shape_coefs = np.empty(shape=(num_subjects + start_idx, 1, num_coefs), dtype=np.float32)
-    '''
-    for perm_idx, perm in enumerate(
-            list(shape_combination_coefs)[start_idx : start_idx + num_subjects]):
-        perm = np.array(perm)
-        perm[0] = 0.
-        np_shape_coefs[perm_idx + start_idx] = perm
-    '''
     np_shape_coefs = np.random.uniform(-1.5, 1.5, size=(num_subjects, 1, 10))
     shape_coefs = torch.from_numpy(np_shape_coefs).to('cpu')
     zero_pose = np.zeros([1, SMPL_NUM_KPTS * 3])
@@ -393,7 +375,6 @@ def check_args(args):
 
 
 if __name__ == '__main__':
-    '''
     torch.manual_seed(2021)
     np.random.seed(2021)
     parser = init_argparse()
@@ -404,9 +385,8 @@ if __name__ == '__main__':
          num_female=args.female,
          model=args.model,
          regenerate=args.regenerate)
-    '''
     #generate_extremes('female')
 
     #generate_scaled()
     #generate_normalized()
-    generate_same_relative_shape()
+    #generate_same_relative_shape()
